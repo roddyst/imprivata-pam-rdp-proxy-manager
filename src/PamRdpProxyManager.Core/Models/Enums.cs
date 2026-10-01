@@ -33,16 +33,6 @@ public enum ServerAuthenticationLevel
     Warn = 2,
 }
 
-/// <summary>How the user name is built when no confirm ID token was entered.</summary>
-public enum EmptyTokenFormat
-{
-    /// <summary><c>user##rdphost</c> – keeps the empty token segment (default).</summary>
-    KeepEmptySegment,
-
-    /// <summary><c>user#rdphost</c> – drops the token segment entirely.</summary>
-    OmitSegment,
-}
-
 public enum AppTheme
 {
     Dark,

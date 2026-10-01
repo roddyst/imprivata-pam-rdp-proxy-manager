@@ -103,11 +103,6 @@ public partial class MainViewModel : ObservableObject
         {
             var token = string.IsNullOrWhiteSpace(Token) ? string.Empty : new string('•', Math.Min(Token.Trim().Length, 8));
             var target = string.IsNullOrWhiteSpace(TargetHost) ? "<zielserver>" : TargetHost.Trim();
-            if (token.Length == 0 && _settings.EmptyTokenFormat == EmptyTokenFormat.OmitSegment)
-            {
-                return $"{UserName}#{target}";
-            }
-
             return $"{UserName}#{token}#{target}";
         }
     }
@@ -126,28 +121,16 @@ public partial class MainViewModel : ObservableObject
         set => SetProperty(_settings.ClearTokenAfterConnect, value, _settings, (s, v) => s.ClearTokenAfterConnect = v);
     }
 
-    public EmptyTokenFormat EmptyTokenFormat
-    {
-        get => _settings.EmptyTokenFormat;
-        set
-        {
-            if (SetProperty(_settings.EmptyTokenFormat, value, _settings, (s, v) => s.EmptyTokenFormat = v))
-            {
-                OnPropertyChanged(nameof(UsernamePreview));
-            }
-        }
-    }
-
     public int CleanupDelaySeconds
     {
         get => _settings.CredentialCleanupDelaySeconds;
-        set => SetProperty(_settings.CredentialCleanupDelaySeconds, Math.Clamp(value, 5, 300), _settings, (s, v) => s.CredentialCleanupDelaySeconds = v);
+        set => SetProperty(_settings.CredentialCleanupDelaySeconds, value, _settings, (s, v) => s.CredentialCleanupDelaySeconds = v);
     }
 
     public int MaxRecentTargets
     {
         get => _settings.MaxRecentTargets;
-        set => SetProperty(_settings.MaxRecentTargets, Math.Clamp(value, 1, 200), _settings, (s, v) => s.MaxRecentTargets = v);
+        set => SetProperty(_settings.MaxRecentTargets, value, _settings, (s, v) => s.MaxRecentTargets = v);
     }
 
     public AppTheme Theme
@@ -190,12 +173,6 @@ public partial class MainViewModel : ObservableObject
         new(ServerAuthenticationLevel.Warn, "Warnen (empfohlen)"),
         new(ServerAuthenticationLevel.DoNotConnect, "Nicht verbinden"),
         new(ServerAuthenticationLevel.ConnectWithoutWarning, "Ohne Warnung verbinden"),
-    ];
-
-    public IReadOnlyList<Option<EmptyTokenFormat>> EmptyTokenFormats { get; } =
-    [
-        new(EmptyTokenFormat.KeepEmptySegment, "benutzer##zielserver"),
-        new(EmptyTokenFormat.OmitSegment, "benutzer#zielserver"),
     ];
 
     public IReadOnlyList<Option<AppTheme>> Themes { get; } =
@@ -241,7 +218,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var proxyUser = UsernameBuilder.Build(_session.UserName, Token, target, _settings.EmptyTokenFormat);
+        var proxyUser = UsernameBuilder.Build(_session.UserName, Token, target);
 
         if (!await ConfirmExistingCredentialAsync(CredentialManager.TargetFor(proxyHost)))
         {
@@ -252,7 +229,7 @@ public partial class MainViewModel : ObservableObject
         ShowStatus("Verbinde …", $"{target} über {proxyHost}:{profile.Port}", InfoBarSeverity.Informational);
         try
         {
-            var delay = TimeSpan.FromSeconds(_settings.CredentialCleanupDelaySeconds);
+            var delay = TimeSpan.FromSeconds(Math.Clamp(_settings.CredentialCleanupDelaySeconds, 5, 300));
             await _launcher.LaunchAsync(
                 new LaunchRequest(proxyHost, profile.Port, profile.Rdp.Clone(), proxyUser, _session.Password, delay),
                 onWaiting: () => ShowStatus("Bitte warten …", "Die vorherige Verbindung wird noch aufgebaut. Danach wird automatisch verbunden.", InfoBarSeverity.Informational));
@@ -489,6 +466,13 @@ public partial class MainViewModel : ObservableObject
             return false;
         }
 
+        var invalidPort = Profiles.FirstOrDefault(p => !ProxyHostParser.IsValidPort(p.Port));
+        if (invalidPort is not null)
+        {
+            ShowStatus("Speichern nicht möglich", $"Der RDP-Port im Profil „{invalidPort.Name}“ muss zwischen 1 und 65535 liegen.", InfoBarSeverity.Error);
+            return false;
+        }
+
         foreach (var profile in Profiles)
         {
             if (ProxyHostParser.TryParse(profile.ProxyHost, out var host, out var port, out _))
@@ -500,6 +484,9 @@ public partial class MainViewModel : ObservableObject
 
         _settings.Profiles = [.. Profiles];
         _settings.ActiveProfileName = SelectedProfile.Name;
+        _settings.Normalize();
+        OnPropertyChanged(nameof(CleanupDelaySeconds));
+        OnPropertyChanged(nameof(MaxRecentTargets));
         _settings.LastUserName = _settings.RememberUserName ? _session.UserName : null;
 
         try

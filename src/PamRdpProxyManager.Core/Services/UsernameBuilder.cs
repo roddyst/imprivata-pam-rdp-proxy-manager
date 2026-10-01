@@ -1,13 +1,14 @@
-using PamRdpProxyManager.Core.Models;
-
 namespace PamRdpProxyManager.Core.Services;
 
-/// <summary>Builds the proxy user name in the format <c>user#confirmidtoken#rdphost</c>.</summary>
+/// <summary>
+/// Builds the proxy user name, always in the format <c>user#confirmidtoken#rdphost</c>.
+/// Without a token the segment stays empty: <c>user##rdphost</c>.
+/// </summary>
 public static class UsernameBuilder
 {
     public const char Separator = '#';
 
-    public static string Build(string user, string? token, string targetHost, EmptyTokenFormat emptyTokenFormat = EmptyTokenFormat.KeepEmptySegment)
+    public static string Build(string user, string? token, string targetHost)
     {
         var error = Validate(user, token, targetHost);
         if (error is not null)
@@ -15,16 +16,7 @@ public static class UsernameBuilder
             throw new ArgumentException(error);
         }
 
-        user = user.Trim();
-        token = token?.Trim() ?? string.Empty;
-        targetHost = targetHost.Trim();
-
-        if (token.Length == 0 && emptyTokenFormat == EmptyTokenFormat.OmitSegment)
-        {
-            return $"{user}{Separator}{targetHost}";
-        }
-
-        return $"{user}{Separator}{token}{Separator}{targetHost}";
+        return $"{user.Trim()}{Separator}{token?.Trim()}{Separator}{targetHost.Trim()}";
     }
 
     /// <summary>Returns a user-facing error message or <c>null</c> if all parts are valid.</summary>

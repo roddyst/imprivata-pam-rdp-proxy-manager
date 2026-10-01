@@ -16,7 +16,7 @@ public partial class LoginWindow : FluentWindow
         InitializeComponent();
 
         var profile = settings.Profiles.FirstOrDefault(p => p.Name == settings.ActiveProfileName) ?? settings.Profiles[0];
-        ServerInfo.Text = $"PAM-Server: {profile.ProxyHost}  ·  Profil: {profile.Name}";
+        ServerInfo.Text = $"PAM-Server: {profile.ProxyHost}:{profile.Port}  ·  Profil: {profile.Name}";
         RememberBox.IsChecked = settings.RememberUserName;
         UserNameBox.Text = settings.RememberUserName ? settings.LastUserName ?? string.Empty : string.Empty;
 

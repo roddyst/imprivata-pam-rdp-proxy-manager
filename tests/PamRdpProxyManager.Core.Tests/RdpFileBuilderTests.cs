@@ -10,23 +10,22 @@ public class RdpFileBuilderTests
             .Select(l => l.Split(':', 3))
             .ToDictionary(p => p[0], p => p[2]);
 
-    [Fact]
-    public void Build_DefaultPort_OmitsPortInAddress()
+    [Theory]
+    [InlineData(3388)]
+    [InlineData(3389)]
+    [InlineData(4000)]
+    public void Build_AlwaysWritesExplicitPort(int port)
     {
-        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3389, new RdpOptions()));
-        Assert.Equal("pam.example.com", rdp["full address"]);
+        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", port, new RdpOptions()));
+        Assert.Equal($"pam.example.com:{port}", rdp["full address"]);
         Assert.Equal("0", rdp["prompt for credentials"]);
     }
-
-    [Fact]
-    public void Build_CustomPort_AppendsPort() =>
-        Assert.Equal("pam.example.com:3390", Parse(RdpFileBuilder.Build("pam.example.com", 3390, new RdpOptions()))["full address"]);
 
     [Fact]
     public void Build_NeverContainsCredentials()
     {
         var options = new RdpOptions { AdditionalSettings = "password 51:b:ABCDEF\nusername:s:evil\nfull address:s:other.example.com\nkeyboardhook:i:2" };
-        var content = RdpFileBuilder.Build("pam.example.com", 3389, options);
+        var content = RdpFileBuilder.Build("pam.example.com", 3388, options);
 
         Assert.DoesNotContain("password", content, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("username", content, StringComparison.OrdinalIgnoreCase);
@@ -52,7 +51,7 @@ public class RdpFileBuilderTests
             AuthenticationLevel = ServerAuthenticationLevel.DoNotConnect,
         };
 
-        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3389, options));
+        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3388, options));
 
         Assert.Equal("1", rdp["screen mode id"]);
         Assert.Equal("1280", rdp["desktopwidth"]);
@@ -70,7 +69,7 @@ public class RdpFileBuilderTests
     [Fact]
     public void Build_Fullscreen_OmitsResolution()
     {
-        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3389, new RdpOptions { DisplayMode = DisplayMode.Fullscreen }));
+        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { DisplayMode = DisplayMode.Fullscreen }));
         Assert.Equal("2", rdp["screen mode id"]);
         Assert.False(rdp.ContainsKey("desktopwidth"));
     }
@@ -78,7 +77,7 @@ public class RdpFileBuilderTests
     [Fact]
     public void Build_AdditionalSettingOverridesGeneratedValue()
     {
-        var content = RdpFileBuilder.Build("pam.example.com", 3389, new RdpOptions { AdditionalSettings = "session bpp:i:24" });
+        var content = RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { AdditionalSettings = "session bpp:i:24" });
         Assert.Single(content.Split("\r\n"), l => l.StartsWith("session bpp:", StringComparison.Ordinal));
         Assert.Equal("24", Parse(content)["session bpp"]);
     }

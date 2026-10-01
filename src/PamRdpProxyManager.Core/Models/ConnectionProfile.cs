@@ -5,7 +5,8 @@ namespace PamRdpProxyManager.Core.Models;
 /// <summary>A named set of proxy and RDP settings.</summary>
 public partial class ConnectionProfile : ObservableObject
 {
-    public const int DefaultRdpPort = 3389;
+    /// <summary>Default RDP port of the PAM RDP proxy used by this app.</summary>
+    public const int DefaultRdpPort = 3388;
 
     [ObservableProperty]
     private string _name = "Standard";

@@ -13,7 +13,6 @@
             </ResourceDictionary.MergedDictionaries>
 
             <BooleanToVisibilityConverter x:Key="BoolToVisibility" />
-            <conv:IntToDoubleConverter x:Key="IntToDouble" />
             <conv:ZeroToVisibleConverter x:Key="ZeroToVisible" />
 
             <Style x:Key="FieldLabel" TargetType="TextBlock">
