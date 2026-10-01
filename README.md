@@ -32,7 +32,7 @@ user#confirmidtoken#rdphost
 | Teil             | Bedeutung                                                         |
 |------------------|-------------------------------------------------------------------|
 | `user`           | Benutzername des Anwenders                                        |
-| `confirmidtoken` | Token zur Bestätigung (Imprivata ID) – optional                   |
+| `confirmidtoken` | Token zur Bestätigung (Imprivata ID) – optional, ohne Token bleibt das Feld leer: `user##rdphost` |
 | `rdphost`        | Zielserver, auf den über den Proxy verbunden werden soll          |
 
 Das Passwort wird ganz normal als RDP-Passwort übergeben, die Verbindung geht an den **PAM-Server (RDP-Proxy)** –
@@ -50,7 +50,7 @@ der Verbindungsdaten ab.
 - **Startdialog**: Benutzername, Passwort und optional das Confirm-ID-Token
 - **Hauptfenster**: Zielserver eingeben, Token pro Verbindung ändern, Vorschau des Proxy-Benutzernamens
 - **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet
-- **Profile** mit PAM-Server (Hostname oder URL), RDP-Port (Standard 3389) und RDP-Optionen:
+- **Profile** mit PAM-Server (Hostname oder URL), RDP-Port (Standard 3388) und RDP-Optionen:
   Vollbild/Fenster & Auflösung, Multi-Monitor, Farbtiefe, Zwischenablage, Laufwerke, Drucker, Audio/Mikrofon,
   NLA (CredSSP), Verhalten bei fehlgeschlagener Serverauthentifizierung, automatische Wiederverbindung,
   zusätzliche freie `.rdp`-Einstellungen
@@ -65,7 +65,8 @@ der Verbindungsdaten ab.
    ```
 3. EXE in einen beliebigen, **beschreibbaren** Ordner legen (z. B. `C:\Tools\PamRdp\` oder USB-Stick) und starten.
    Keine Installation, keine Adminrechte, kein vorinstalliertes .NET erforderlich.
-4. Unter **Einstellungen & Profile** den PAM-Server eintragen (z. B. `pam.example.com`) und speichern.
+4. Unter **Einstellungen & Profile** den PAM-Server eintragen (z. B. `pam.example.com`), ggf. den Port anpassen
+   (Standard `3388`) und speichern.
 5. Anmelden, Zielserver (z. B. `server01.example.com`) eingeben, **Verbinden**.
 
 Voraussetzungen: Windows 10/11 x64 mit dem integrierten Remotedesktop-Client (`mstsc.exe`).
@@ -113,8 +114,6 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 - **„Ihre Anmeldeinformationen können nicht verwendet werden“ bei NLA:** Manche Gruppenrichtlinien verbieten
   gespeicherte Anmeldedaten mit NTLM-only-Serverauthentifizierung. NLA im Profil deaktivieren, falls der Proxy das
   unterstützt, oder die Richtlinie „Delegierung gespeicherter Anmeldeinformationen zulassen“ prüfen.
-- **Format ohne Token:** Standard ist `user##rdphost`. Falls der Proxy `user#rdphost` erwartet, unter
-  *Einstellungen → Anwendung → Format ohne Token* umstellen.
 
 ### Selbst bauen
 
@@ -158,7 +157,7 @@ user#confirmidtoken#rdphost
 | Part             | Meaning                                                      |
 |------------------|--------------------------------------------------------------|
 | `user`           | the user's account name                                      |
-| `confirmidtoken` | confirmation token (Imprivata ID) – optional                 |
+| `confirmidtoken` | confirmation token (Imprivata ID) – optional; without a token the segment stays empty: `user##rdphost` |
 | `rdphost`        | target server to connect to through the proxy                |
 
 The password is passed as the normal RDP password and the connection goes to the **PAM server (RDP proxy)**, not
@@ -175,7 +174,7 @@ directly to the target. This app builds the user name for you and starts the nat
 - **Login dialog**: user name, password and optional confirm ID token
 - **Main window**: enter the target server, change the token per connection, preview of the proxy user name
 - **Favorites & recently used targets** – click to select, double-click to connect
-- **Profiles** with PAM server (host name or URL), RDP port (default 3389) and RDP options: full screen/window &
+- **Profiles** with PAM server (host name or URL), RDP port (default 3388) and RDP options: full screen/window &
   resolution, multi-monitor, color depth, clipboard, drives, printers, audio/microphone, NLA (CredSSP), server
   authentication behavior, auto-reconnect, additional raw `.rdp` settings
 - Modern Fluent design (WPF-UI) with dark mode (light/system selectable)
@@ -189,7 +188,8 @@ directly to the target. This app builds the user name for you and starts the nat
    ```
 3. Put the EXE into any **writable** folder (e.g. `C:\Tools\PamRdp\` or a USB stick) and run it.
    No installation, no admin rights, no pre-installed .NET required.
-4. In **Einstellungen & Profile** (settings & profiles) enter your PAM server (e.g. `pam.example.com`) and save.
+4. In **Einstellungen & Profile** (settings & profiles) enter your PAM server (e.g. `pam.example.com`), adjust the
+   port if needed (default `3388`) and save.
 5. Log in, enter the target server (e.g. `server01.example.com`) and click **Verbinden** (connect).
 
 Requirements: Windows 10/11 x64 with the built-in Remote Desktop client (`mstsc.exe`). The UI is in German.
@@ -236,8 +236,6 @@ part of the .NET single-file format and needs no special rights.
 - **"Your credentials could not be used" with NLA:** some group policies forbid saved credentials with NTLM-only server
   authentication. Disable NLA in the profile if the proxy supports it, or check the policy
   "Allow delegating saved credentials".
-- **Format without token:** the default is `user##rdphost`. If your proxy expects `user#rdphost`, switch it under
-  *Einstellungen → Anwendung → Format ohne Token*.
 
 ### Building from source
 

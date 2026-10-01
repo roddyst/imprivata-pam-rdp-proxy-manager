@@ -38,6 +38,49 @@ public sealed class SettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void NewProfile_DefaultsToPort3388() =>
+        Assert.Equal(3388, new ConnectionProfile().Port);
+
+    [Fact]
+    public void Load_SchemaV1_MigratesOldDefaultPort3389To3388()
+    {
+        var store = new SettingsStore(_root, _root);
+        File.WriteAllText(store.FilePath, """
+            {
+              "schemaVersion": 1,
+              "profiles": [
+                { "name": "A", "proxyHost": "pam.example.com", "port": 3389 },
+                { "name": "B", "proxyHost": "pam.example.com", "port": 4000 }
+              ]
+            }
+            """);
+
+        var settings = store.Load(out _);
+
+        Assert.Equal(3388, settings.Profiles[0].Port);
+        Assert.Equal(4000, settings.Profiles[1].Port);
+        Assert.Equal(AppSettings.CurrentSchemaVersion, settings.SchemaVersion);
+    }
+
+    [Fact]
+    public void Load_CurrentSchema_KeepsExplicitPort3389()
+    {
+        var store = new SettingsStore(_root, _root);
+        store.Save(new AppSettings { Profiles = [new ConnectionProfile { Name = "A", Port = 3389 }] });
+
+        Assert.Equal(3389, store.Load(out _).Profiles[0].Port);
+    }
+
+    [Fact]
+    public void Load_ProfileWithoutPort_UsesDefault3388()
+    {
+        var store = new SettingsStore(_root, _root);
+        File.WriteAllText(store.FilePath, """{ "schemaVersion": 2, "profiles": [ { "name": "A", "proxyHost": "pam.example.com" } ] }""");
+
+        Assert.Equal(3388, store.Load(out _).Profiles[0].Port);
+    }
+
+    [Fact]
     public void SaveAndLoad_RoundTrips()
     {
         var store = new SettingsStore(_root, _root);

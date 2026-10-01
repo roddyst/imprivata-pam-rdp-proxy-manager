@@ -5,6 +5,7 @@
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+    xmlns:b="clr-namespace:PamRdpProxyManager.Behaviors"
     xmlns:vm="clr-namespace:PamRdpProxyManager.ViewModels"
     Title="Imprivata PAM RDP Proxy Manager"
     Width="1040"
@@ -149,7 +150,7 @@
                                     Text="{Binding UsernamePreview}"
                                     TextTrimming="CharacterEllipsis" />
                             </Border>
-                            <TextBlock Style="{StaticResource Hint}" Text="Format: benutzer#confirmidtoken#zielserver – das Passwort wird separat übergeben." />
+                            <TextBlock Style="{StaticResource Hint}" Text="Format: benutzer#token#zielserver (ohne Token: benutzer##zielserver) – das Passwort wird separat übergeben." />
 
                             <StackPanel Margin="0,20,0,0" Orientation="Horizontal">
                                 <ui:Button
@@ -345,15 +346,13 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="RDP-Port" />
-                                        <ui:NumberBox
-                                            MaxDecimalPlaces="0"
-                                            Maximum="65535"
-                                            Minimum="1"
-                                            SmallChange="1"
-                                            Value="{Binding SelectedProfile.Port, Converter={StaticResource IntToDouble}}" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="5"
+                                            Text="{Binding SelectedProfile.Port, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Style="{StaticResource Hint}" Text="Eine URL wie https://pam.example.com/ wird automatisch auf den Hostnamen gekürzt. Standard-Port: 3389." />
+                                <TextBlock Style="{StaticResource Hint}" Text="Eine URL wie https://pam.example.com/ wird automatisch auf den Hostnamen gekürzt. Standard-Port: 3388." />
                             </StackPanel>
                         </ui:Card>
 
@@ -392,23 +391,17 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Breite (Fenstermodus)" />
-                                        <ui:NumberBox
-                                            LargeChange="100"
-                                            MaxDecimalPlaces="0"
-                                            Maximum="8192"
-                                            Minimum="640"
-                                            SmallChange="10"
-                                            Value="{Binding SelectedProfile.Rdp.DesktopWidth, Converter={StaticResource IntToDouble}}" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="5"
+                                            Text="{Binding SelectedProfile.Rdp.DesktopWidth, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Höhe (Fenstermodus)" />
-                                        <ui:NumberBox
-                                            LargeChange="100"
-                                            MaxDecimalPlaces="0"
-                                            Maximum="8192"
-                                            Minimum="480"
-                                            SmallChange="10"
-                                            Value="{Binding SelectedProfile.Rdp.DesktopHeight, Converter={StaticResource IntToDouble}}" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="5"
+                                            Text="{Binding SelectedProfile.Rdp.DesktopHeight, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                 </Grid>
                                 <WrapPanel Margin="0,12,0,0">
@@ -485,14 +478,6 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Format ohne Token" />
-                                        <ComboBox
-                                            DisplayMemberPath="Text"
-                                            ItemsSource="{Binding EmptyTokenFormats}"
-                                            SelectedValue="{Binding EmptyTokenFormat}"
-                                            SelectedValuePath="Value" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Design" />
                                         <ComboBox
                                             DisplayMemberPath="Text"
@@ -509,21 +494,17 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Zugangsdaten entfernen nach (Sekunden)" />
-                                        <ui:NumberBox
-                                            MaxDecimalPlaces="0"
-                                            Maximum="300"
-                                            Minimum="5"
-                                            SmallChange="1"
-                                            Value="{Binding CleanupDelaySeconds, Converter={StaticResource IntToDouble}}" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="5"
+                                            Text="{Binding CleanupDelaySeconds, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="Anzahl zuletzt verwendeter Ziele" />
-                                        <ui:NumberBox
-                                            MaxDecimalPlaces="0"
-                                            Maximum="200"
-                                            Minimum="1"
-                                            SmallChange="1"
-                                            Value="{Binding MaxRecentTargets, Converter={StaticResource IntToDouble}}" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="5"
+                                            Text="{Binding MaxRecentTargets, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Style="{StaticResource Hint}" Text="Der temporäre Windows-Anmeldeeintrag TERMSRV/&lt;PAM-Server&gt; und die .rdp-Datei werden entfernt, sobald mstsc beendet ist oder diese Zeit abgelaufen ist." />

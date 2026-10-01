@@ -3,7 +3,7 @@ namespace PamRdpProxyManager.Core.Models;
 /// <summary>Root object of the portable <c>settings.json</c>. Never contains passwords or tokens.</summary>
 public class AppSettings
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -23,8 +23,6 @@ public class AppSettings
     /// <summary>Last user name (only stored when <see cref="RememberUserName"/> is set). Not a secret.</summary>
     public string? LastUserName { get; set; }
 
-    public EmptyTokenFormat EmptyTokenFormat { get; set; } = EmptyTokenFormat.KeepEmptySegment;
-
     /// <summary>Clear the confirm ID token after each connection (tokens are usually single-use).</summary>
     public bool ClearTokenAfterConnect { get; set; } = true;
 
@@ -34,9 +32,20 @@ public class AppSettings
     /// </summary>
     public int CredentialCleanupDelaySeconds { get; set; } = 15;
 
-    /// <summary>Ensures there is at least one profile and the active profile name is valid.</summary>
+    /// <summary>Migrates older files and ensures there is at least one profile and a valid active profile.</summary>
     public void Normalize()
     {
+        if (SchemaVersion < 2)
+        {
+            // Version 1 used the mstsc default 3389 as profile default; the app default is now 3388.
+            foreach (var profile in Profiles.Where(p => p?.Port == 3389))
+            {
+                profile.Port = ConnectionProfile.DefaultRdpPort;
+            }
+        }
+
+        SchemaVersion = CurrentSchemaVersion;
+
         Profiles.RemoveAll(p => p is null);
         if (Profiles.Count == 0)
         {

@@ -35,7 +35,8 @@ public static class RdpFileBuilder
 
         var lines = new List<string>
         {
-            S("full address", port == ConnectionProfile.DefaultRdpPort ? proxyHost : $"{proxyHost}:{port}"),
+            // Always explicit – the proxy does not listen on the mstsc default port 3389.
+            S("full address", $"{proxyHost}:{port}"),
             I("prompt for credentials", 0),
             I("screen mode id", options.DisplayMode == DisplayMode.Fullscreen ? 2 : 1),
         };

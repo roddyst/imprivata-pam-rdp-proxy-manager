@@ -1,4 +1,3 @@
-using PamRdpProxyManager.Core.Models;
 using PamRdpProxyManager.Core.Services;
 
 namespace PamRdpProxyManager.Core.Tests;
@@ -17,16 +16,8 @@ public class UsernameBuilderTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
-    public void Build_WithoutToken_KeepsEmptySegmentByDefault(string? token) =>
+    public void Build_WithoutToken_KeepsEmptyTokenSegment(string? token) =>
         Assert.Equal("jdoe##srv01", UsernameBuilder.Build("jdoe", token, "srv01"));
-
-    [Fact]
-    public void Build_WithoutToken_CanOmitSegment() =>
-        Assert.Equal("jdoe#srv01", UsernameBuilder.Build("jdoe", null, "srv01", EmptyTokenFormat.OmitSegment));
-
-    [Fact]
-    public void Build_WithToken_IgnoresOmitSetting() =>
-        Assert.Equal("jdoe#1#srv01", UsernameBuilder.Build("jdoe", "1", "srv01", EmptyTokenFormat.OmitSegment));
 
     [Fact]
     public void Build_AllowsDomainUser() =>
