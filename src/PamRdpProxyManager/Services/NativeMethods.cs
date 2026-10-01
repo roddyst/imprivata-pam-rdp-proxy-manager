@@ -65,4 +65,22 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool FlashWindowEx(ref FLASHWINFO info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LASTINPUTINFO
+    {
+        public uint cbSize;
+        public uint dwTime;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetLastInputInfo(ref LASTINPUTINFO info);
+
+    public const int TCP_TABLE_OWNER_PID_ALL = 5;
+    public const int MIB_TCP_STATE_ESTAB = 5;
+    public const uint ERROR_INSUFFICIENT_BUFFER = 122;
+
+    [DllImport("iphlpapi.dll")]
+    public static extern uint GetExtendedTcpTable(IntPtr table, ref int size, [MarshalAs(UnmanagedType.Bool)] bool order, int addressFamily, int tableClass, uint reserved);
 }

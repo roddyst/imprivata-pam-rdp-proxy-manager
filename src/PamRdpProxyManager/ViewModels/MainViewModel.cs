@@ -56,7 +56,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         RefreshMfaStatus();
         _mfaTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _mfaTimer.Tick += (_, _) => RefreshMfaStatus();
+        _mfaTimer.Tick += (_, _) =>
+        {
+            RefreshMfaStatus();
+            CheckIdleLogout();
+        };
         _mfaTimer.Start();
     }
 
@@ -69,8 +73,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Raised when the validity of the entered token has expired (reminder to enter a new one).</summary>
     public event EventHandler? MfaExpired;
 
-    /// <summary>Raised when the user wants to log out (returns to the login dialog).</summary>
-    public event EventHandler? LogoutRequested;
+    /// <summary>Raised to log out (returns to the login dialog); the argument is a notice for the login dialog.</summary>
+    public event EventHandler<string?>? LogoutRequested;
 
     public string UserName => _session.UserName;
 
@@ -192,6 +196,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
+    public bool AutoLogoutEnabled
+    {
+        get => _settings.AutoLogoutEnabled;
+        set => SetProperty(_settings.AutoLogoutEnabled, value, _settings, (s, v) => s.AutoLogoutEnabled = v);
+    }
+
+    public int AutoLogoutMinutes
+    {
+        get => _settings.AutoLogoutMinutes;
+        set => SetProperty(_settings.AutoLogoutMinutes, value, _settings, (s, v) => s.AutoLogoutMinutes = v);
+    }
+
     public int MaxRecentTargets
     {
         get => _settings.MaxRecentTargets;
@@ -235,9 +251,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public IReadOnlyList<Option<ServerAuthenticationLevel>> AuthenticationLevels { get; } =
     [
-        new(ServerAuthenticationLevel.Warn, "Warnen (empfohlen)"),
-        new(ServerAuthenticationLevel.DoNotConnect, "Nicht verbinden"),
-        new(ServerAuthenticationLevel.ConnectWithoutWarning, "Ohne Warnung verbinden"),
+        // "Connect without warning" is deliberately not offered: it allows man-in-the-middle attacks on the password.
+        new(ServerAuthenticationLevel.Warn, "Warnen"),
+        new(ServerAuthenticationLevel.DoNotConnect, "Nicht verbinden (am sichersten)"),
     ];
 
     public IReadOnlyList<Option<AppTheme>> Themes { get; } =
@@ -669,6 +685,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CleanupDelaySeconds));
         OnPropertyChanged(nameof(MaxRecentTargets));
         OnPropertyChanged(nameof(MfaValidityHours));
+        OnPropertyChanged(nameof(AutoLogoutMinutes));
         _settings.LastUserName = _settings.RememberUserName ? _session.UserName : null;
 
         try
@@ -703,7 +720,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void Logout() => LogoutRequested?.Invoke(this, EventArgs.Empty);
+    private void Logout() => LogoutRequested?.Invoke(this, null);
+
+    /// <summary>Discards the password when nobody has used this computer for the configured time.</summary>
+    private void CheckIdleLogout()
+    {
+        // Never interrupt a connection that is still being established (the credential is in use).
+        if (!_settings.AutoLogoutEnabled || IsConnecting || _launcher.IsBusy)
+        {
+            return;
+        }
+
+        var limit = TimeSpan.FromMinutes(Math.Clamp(_settings.AutoLogoutMinutes, AppSettings.MinAutoLogoutMinutes, AppSettings.MaxAutoLogoutMinutes));
+        if (SystemState.IdleTime >= limit)
+        {
+            _mfaTimer.Stop();
+            LogoutRequested?.Invoke(this, $"Sie wurden nach {(int)limit.TotalMinutes} Minuten ohne Aktivität automatisch abgemeldet. Das Passwort wurde aus dem Speicher entfernt.");
+        }
+    }
 
     private void ShowStatus(string title, string message, InfoBarSeverity severity)
     {

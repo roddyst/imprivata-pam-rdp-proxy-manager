@@ -518,7 +518,7 @@
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Zugangsdaten entfernen nach (Sekunden)" />
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Zugangsdaten spätestens entfernen nach (Sekunden)" />
                                         <ui:TextBox
                                             b:NumericInput.IsEnabled="True"
                                             MaxLength="5"
@@ -532,7 +532,25 @@
                                             Text="{Binding MaxRecentTargets, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Style="{StaticResource Hint}" Text="Der temporäre Windows-Anmeldeeintrag TERMSRV/&lt;PAM-Server&gt; und die .rdp-Datei werden entfernt, sobald mstsc beendet ist oder diese Zeit abgelaufen ist." />
+                                <TextBlock Style="{StaticResource Hint}" Text="Der temporäre Windows-Anmeldeeintrag TERMSRV/&lt;PAM-Server&gt; und die .rdp-Datei werden wenige Sekunden nach dem Verbindungsaufbau entfernt – spätestens nach dieser Zeit oder wenn mstsc beendet wird." />
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Automatische Abmeldung" />
+                                <ui:ToggleSwitch Margin="0,6,0,6" Content="Nach Inaktivität abmelden (Passwort verwerfen)" IsChecked="{Binding AutoLogoutEnabled}" />
+                                <Grid IsEnabled="{Binding AutoLogoutEnabled}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="16" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Inaktivität (Minuten, 5–1440)" />
+                                        <ui:TextBox
+                                            b:NumericInput.IsEnabled="True"
+                                            MaxLength="4"
+                                            Text="{Binding AutoLogoutMinutes, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Hint}" Text="Inaktiv heißt: keine Tastatur- oder Mauseingabe an diesem Computer – Arbeit in einer Remotedesktop-Sitzung zählt als Aktivität. Laufende Remotedesktop-Sitzungen bleiben bestehen." />
 
                                 <TextBlock Style="{StaticResource FieldLabel}" Text="Gültigkeit des Confirm-ID-Tokens (MFA)" />
                                 <ui:ToggleSwitch Margin="0,6,0,6" Content="Token nur einmal eingeben und Gültigkeit merken" IsChecked="{Binding MfaValidityEnabled}" />

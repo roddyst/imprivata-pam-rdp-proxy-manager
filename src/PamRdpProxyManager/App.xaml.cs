@@ -1,3 +1,5 @@
+using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Threading;
 using PamRdpProxyManager.Core.Models;
@@ -18,17 +20,102 @@ public partial class App : Application
     private string? _startupWarning;
     private UserSession? _session;
 
-    protected override void OnStartup(StartupEventArgs e)
+    protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
 
-        _store = SettingsStore.ForCurrentProcess(AppFolderName);
+        _store = SettingsStore.ForCurrentProcess(AppFolderName, new DpapiSettingsProtector());
         _settings = _store.Load(out _startupWarning);
         ThemeHelper.Apply(_settings.Theme);
 
         RdpLauncher.CleanupLeftovers();
-        ShowLogin();
+
+        if (_store.Verification == SettingsVerification.Unverified && !await ConfirmUnverifiedSettingsAsync())
+        {
+            Shutdown();
+            return;
+        }
+
+        ShowLogin(notice: null);
+    }
+
+    /// <summary>
+    /// The settings file was not saved by this app for the current Windows user. A manipulated file could send the
+    /// password to a foreign server, so the user has to confirm the PAM servers before the settings are used.
+    /// </summary>
+    private async Task<bool> ConfirmUnverifiedSettingsAsync()
+    {
+        var text = new StringBuilder()
+            .AppendLine("Die Einstellungsdatei wurde nicht von dieser App für Ihr Windows-Konto auf diesem Computer gespeichert.")
+            .AppendLine("Das ist normal beim ersten Start nach einem Update oder wenn die Datei von einem anderen PC stammt – sie kann aber auch verändert worden sein.")
+            .AppendLine()
+            .AppendLine("Ihr Passwort wird an diese PAM-Server übergeben:");
+        foreach (var profile in _settings.Profiles)
+        {
+            text.Append("  •  ").Append(profile.Name).Append(": ").Append(profile.ProxyHost).Append(':').Append(profile.Port);
+            if (profile.Rdp.RedirectDrives)
+            {
+                text.Append("  (Laufwerke werden umgeleitet)");
+            }
+
+            if (!string.IsNullOrWhiteSpace(profile.Rdp.AdditionalSettings))
+            {
+                text.Append("  (zusätzliche RDP-Einstellungen)");
+            }
+
+            text.AppendLine();
+        }
+
+        text.AppendLine().Append("Nur vertrauen, wenn Sie diese Server kennen. „Zurücksetzen“ legt die Datei beiseite und startet mit Standardwerten.");
+
+        var box = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "Einstellungen prüfen",
+            Content = new System.Windows.Controls.TextBlock { Text = text.ToString(), TextWrapping = TextWrapping.Wrap, MaxWidth = 520 },
+            PrimaryButtonText = "Vertrauen",
+            SecondaryButtonText = "Zurücksetzen",
+            CloseButtonText = "Beenden",
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        };
+
+        switch (await box.ShowDialogAsync())
+        {
+            case Wpf.Ui.Controls.MessageBoxResult.Primary:
+                TrySaveSettings();
+                return true;
+
+            case Wpf.Ui.Controls.MessageBoxResult.Secondary:
+                try
+                {
+                    var backup = _store.Quarantine();
+                    _settings = _store.Load(out _);
+                    _startupWarning = $"Die nicht vertrauenswürdige Einstellungsdatei wurde nach „{backup}“ verschoben. Es werden Standardwerte verwendet.";
+                    TrySaveSettings();
+                    return true;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    System.Windows.MessageBox.Show($"Die Einstellungsdatei konnte nicht zurückgesetzt werden: {ex.Message}", "Imprivata PAM RDP Proxy Manager", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return false;
+                }
+
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>Saves (and thereby signs) the confirmed settings; a read-only folder only means asking again next time.</summary>
+    private void TrySaveSettings()
+    {
+        try
+        {
+            _store.Save(_settings);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _startupWarning = $"Die Einstellungen konnten nicht gespeichert werden: {ex.Message}";
+        }
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -38,9 +125,9 @@ public partial class App : Application
         base.OnExit(e);
     }
 
-    private void ShowLogin()
+    private void ShowLogin(string? notice)
     {
-        var login = new LoginWindow(_settings);
+        var login = new LoginWindow(_settings, notice);
         if (login.ShowDialog() != true || login.Session is null)
         {
             Shutdown();
@@ -54,9 +141,11 @@ public partial class App : Application
 
         var main = new MainWindow(vm);
         var loggingOut = false;
-        vm.LogoutRequested += (_, _) =>
+        string? logoutNotice = null;
+        vm.LogoutRequested += (_, reason) =>
         {
             loggingOut = true;
+            logoutNotice = reason;
             main.Close();
         };
         main.Closed += (_, _) =>
@@ -69,7 +158,7 @@ public partial class App : Application
 
             if (loggingOut)
             {
-                ShowLogin();
+                ShowLogin(logoutNotice);
             }
             else
             {

@@ -75,7 +75,7 @@ public static class RdpFileBuilder
         lines.Add(I("audiomode", (int)options.AudioMode));
         lines.Add(I("audiocapturemode", options.AudioCapture));
         lines.Add(I("enablecredsspsupport", options.EnableNla));
-        lines.Add(I("authentication level", (int)options.AuthenticationLevel));
+        lines.Add(I("authentication level", (int)NormalizeAuthenticationLevel(options.AuthenticationLevel)));
         lines.Add(I("autoreconnection enabled", options.AutoReconnect));
 
         foreach (var extra in ParseAdditionalSettings(options.AdditionalSettings))
@@ -156,6 +156,10 @@ public static class RdpFileBuilder
         15 or 16 or 24 or 32 => bpp,
         _ => 32,
     };
+
+    /// <summary>Only "warn" and "do not connect" are allowed; anything else (e.g. a manipulated file) becomes "warn".</summary>
+    internal static ServerAuthenticationLevel NormalizeAuthenticationLevel(ServerAuthenticationLevel level) =>
+        level == ServerAuthenticationLevel.DoNotConnect ? level : ServerAuthenticationLevel.Warn;
 
     private static string KeyOf(string line) => line.Split(':', 2)[0].Trim();
 

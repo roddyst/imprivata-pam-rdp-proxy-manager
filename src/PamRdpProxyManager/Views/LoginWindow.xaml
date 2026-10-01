@@ -44,6 +44,14 @@
                 </StackPanel>
             </StackPanel>
 
+            <ui:InfoBar
+                x:Name="NoticeBar"
+                Title="Abgemeldet"
+                Margin="0,14,0,0"
+                IsClosable="True"
+                IsOpen="False"
+                Severity="Informational" />
+
             <TextBlock Style="{StaticResource FieldLabel}" Text="Benutzername" />
             <ui:TextBox
                 x:Name="UserNameBox"

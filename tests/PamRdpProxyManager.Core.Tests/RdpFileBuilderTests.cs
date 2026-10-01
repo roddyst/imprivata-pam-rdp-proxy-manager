@@ -51,6 +51,17 @@ public class RdpFileBuilderTests
         Assert.Equal("1", rdp["enablecredsspsupport"]);
     }
 
+    [Theory]
+    [InlineData(ServerAuthenticationLevel.ConnectWithoutWarning, "2")]
+    [InlineData((ServerAuthenticationLevel)7, "2")]
+    [InlineData(ServerAuthenticationLevel.Warn, "2")]
+    [InlineData(ServerAuthenticationLevel.DoNotConnect, "1")]
+    public void Build_NeverConnectsWithoutWarning(ServerAuthenticationLevel level, string expected)
+    {
+        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { AuthenticationLevel = level }));
+        Assert.Equal(expected, rdp["authentication level"]);
+    }
+
     [Fact]
     public void Build_MapsOptions()
     {
