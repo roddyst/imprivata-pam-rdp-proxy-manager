@@ -196,7 +196,7 @@
                             <TextBlock
                                 DockPanel.Dock="Top"
                                 Style="{StaticResource Hint}"
-                                Text="Klick übernimmt das Ziel, Doppelklick verbindet direkt." />
+                                Text="Klick übernimmt das Ziel, Doppelklick verbindet direkt (ohne Token wird danach gefragt)." />
                             <TextBlock
                                 Margin="0,24,0,0"
                                 DockPanel.Dock="Top"
@@ -204,13 +204,16 @@
                                 Style="{StaticResource Hint}"
                                 Text="Noch keine Ziele verwendet."
                                 Visibility="{Binding RecentTargets.Count, Converter={StaticResource ZeroToVisible}}" />
-                            <ListView
+                            <ui:ListView
                                 x:Name="RecentList"
                                 Margin="0,8,0,0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                 ItemsSource="{Binding RecentTargets}"
                                 MouseDoubleClick="OnRecentDoubleClick"
                                 SelectedItem="{Binding SelectedRecentTarget}">
-                                <ListView.ItemTemplate>
+                                <ui:ListView.ItemTemplate>
                                     <DataTemplate>
                                         <Grid Margin="0,4">
                                             <Grid.ColumnDefinitions>
@@ -224,11 +227,14 @@
                                                 Padding="6"
                                                 Appearance="Transparent"
                                                 BorderThickness="0"
-                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                Command="{Binding DataContext.ToggleFavoriteCommand, RelativeSource={RelativeSource AncestorType=ui:ListView}}"
                                                 CommandParameter="{Binding}"
                                                 ToolTip="Favorit an/aus">
                                                 <ui:Button.Icon>
-                                                    <ui:SymbolIcon Filled="{Binding IsFavorite}" Symbol="Star24" />
+                                                    <ui:SymbolIcon
+                                                        Filled="{Binding IsFavorite}"
+                                                        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                                        Symbol="Star24" />
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                             <StackPanel
@@ -237,11 +243,12 @@
                                                 VerticalAlignment="Center">
                                                 <TextBlock
                                                     FontWeight="SemiBold"
+                                                    Foreground="{DynamicResource TextFillColorPrimaryBrush}"
                                                     Text="{Binding Host}"
                                                     TextTrimming="CharacterEllipsis" />
                                                 <TextBlock
                                                     FontSize="11"
-                                                    Foreground="{DynamicResource TextFillColorTertiaryBrush}"
+                                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                                     TextTrimming="CharacterEllipsis">
                                                     <Run Text="{Binding LastUsed, StringFormat={}{0:dd.MM.yyyy HH:mm}, Mode=OneWay}" />
                                                     <Run Text="·" />
@@ -253,11 +260,11 @@
                                                 Padding="6"
                                                 Appearance="Transparent"
                                                 BorderThickness="0"
-                                                Command="{Binding DataContext.ConnectToCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                Command="{Binding DataContext.ConnectToCommand, RelativeSource={RelativeSource AncestorType=ui:ListView}}"
                                                 CommandParameter="{Binding}"
                                                 ToolTip="Verbinden">
                                                 <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="PlugConnected24" />
+                                                    <ui:SymbolIcon Foreground="{DynamicResource TextFillColorPrimaryBrush}" Symbol="PlugConnected24" />
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                             <ui:Button
@@ -265,17 +272,17 @@
                                                 Padding="6"
                                                 Appearance="Transparent"
                                                 BorderThickness="0"
-                                                Command="{Binding DataContext.RemoveRecentCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                Command="{Binding DataContext.RemoveRecentCommand, RelativeSource={RelativeSource AncestorType=ui:ListView}}"
                                                 CommandParameter="{Binding}"
                                                 ToolTip="Aus der Liste entfernen">
                                                 <ui:Button.Icon>
-                                                    <ui:SymbolIcon Symbol="Dismiss24" />
+                                                    <ui:SymbolIcon Foreground="{DynamicResource TextFillColorPrimaryBrush}" Symbol="Dismiss24" />
                                                 </ui:Button.Icon>
                                             </ui:Button>
                                         </Grid>
                                     </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                                </ui:ListView.ItemTemplate>
+                            </ui:ListView>
                         </DockPanel>
                     </ui:Card>
                 </Grid>

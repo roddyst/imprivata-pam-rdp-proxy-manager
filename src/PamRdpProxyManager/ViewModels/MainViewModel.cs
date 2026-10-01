@@ -231,7 +231,7 @@ public partial class MainViewModel : ObservableObject
         {
             var delay = TimeSpan.FromSeconds(Math.Clamp(_settings.CredentialCleanupDelaySeconds, 5, 300));
             await _launcher.LaunchAsync(
-                new LaunchRequest(proxyHost, profile.Port, profile.Rdp.Clone(), proxyUser, _session.Password, delay),
+                new LaunchRequest(target, proxyHost, profile.Port, profile.Rdp.Clone(), proxyUser, _session.Password, delay),
                 onWaiting: () => ShowStatus("Bitte warten …", "Die vorherige Verbindung wird noch aufgebaut. Danach wird automatisch verbunden.", InfoBarSeverity.Informational));
             OnPropertyChanged(nameof(IsCleanupPending));
 
@@ -268,10 +268,23 @@ public partial class MainViewModel : ObservableObject
         }
 
         SelectRecent(target);
-        if (ConnectCommand.CanExecute(null))
+        if (!ConnectCommand.CanExecute(null))
         {
-            await ConnectCommand.ExecuteAsync(null);
+            return;
         }
+
+        if (string.IsNullOrWhiteSpace(Token))
+        {
+            var token = _dialogs.PromptToken(target.Host);
+            if (token is null)
+            {
+                return;
+            }
+
+            Token = token;
+        }
+
+        await ConnectCommand.ExecuteAsync(null);
     }
 
     private async Task<bool> ConfirmExistingCredentialAsync(string credentialTarget)

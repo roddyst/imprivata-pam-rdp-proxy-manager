@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -22,34 +21,42 @@ public partial class MainWindow : FluentWindow
 
     private void OnRecentDoubleClick(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource is not DependencyObject source || IsInsideButton(source))
+        if (e.ChangedButton != MouseButton.Left || e.OriginalSource is not DependencyObject source)
         {
             return;
         }
 
-        // Only react to double clicks on an item, not on the scrollbar or empty space.
-        if (ItemsControl.ContainerFromElement(RecentList, source) is System.Windows.Controls.ListViewItem { DataContext: RecentTarget target })
+        // Only react to double clicks on an item (not its buttons, the scrollbar or empty space).
+        if (FindItem(source) is { DataContext: RecentTarget target })
         {
-            ViewModel.ConnectToCommand.Execute(target);
+            e.Handled = true;
+
+            // Deferred so a token prompt does not open while the mouse button is still captured by the list.
+            Dispatcher.BeginInvoke(() => ViewModel.ConnectToCommand.Execute(target));
         }
     }
 
-    private static bool IsInsideButton(DependencyObject source)
+    /// <summary>Returns the list item that contains <paramref name="source"/>, or <c>null</c> if it is inside a button.</summary>
+    private static System.Windows.Controls.ListViewItem? FindItem(DependencyObject source)
     {
-        for (var current = source; current is not null;
-             current = current is Visual ? VisualTreeHelper.GetParent(current) : LogicalTreeHelper.GetParent(current))
+        for (var current = source; current is not null; current = GetParent(current))
         {
-            if (current is ButtonBase)
+            switch (current)
             {
-                return true;
-            }
-
-            if (current is System.Windows.Controls.ListViewItem)
-            {
-                return false;
+                case ButtonBase:
+                    return null;
+                case System.Windows.Controls.ListViewItem item:
+                    return item;
             }
         }
 
-        return false;
+        return null;
     }
+
+    private static DependencyObject? GetParent(DependencyObject current) => current switch
+    {
+        Visual or System.Windows.Media.Media3D.Visual3D => VisualTreeHelper.GetParent(current),
+        FrameworkContentElement content => content.Parent,
+        _ => LogicalTreeHelper.GetParent(current),
+    };
 }

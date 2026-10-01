@@ -25,6 +25,16 @@ public static class RdpFileBuilder
         "gatewaypassword",
     ];
 
+    // Fixed list instead of Path.GetInvalidFileNameChars(), which is platform dependent.
+    private static readonly char[] InvalidFileNameChars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
+    private static readonly string[] ReservedFileNames =
+    [
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9",
+    ];
+
     public static string Build(string proxyHost, int port, RdpOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proxyHost);
@@ -101,6 +111,35 @@ public static class RdpFileBuilder
 
             yield return line;
         }
+    }
+
+    /// <summary>
+    /// Returns a Windows-safe .rdp file name for <paramref name="targetHost"/>. mstsc shows the file name
+    /// in its window title and therefore in the taskbar, so it should name the target server.
+    /// </summary>
+    public static string FileNameFor(string? targetHost)
+    {
+        const int maxLength = 100;
+        var name = new string((targetHost ?? string.Empty).Trim()
+            .Select(c => c < 32 || InvalidFileNameChars.Contains(c) ? '_' : c)
+            .ToArray());
+        if (name.Length > maxLength)
+        {
+            name = name[..maxLength];
+        }
+
+        // Windows silently drops trailing dots and spaces and reserves device names such as CON or COM1.
+        name = name.TrimEnd('.', ' ');
+        if (name.Length == 0)
+        {
+            name = "Remotedesktop";
+        }
+        else if (ReservedFileNames.Contains(name.Split('.')[0], StringComparer.OrdinalIgnoreCase))
+        {
+            name = "_" + name;
+        }
+
+        return name + ".rdp";
     }
 
     internal static int NormalizeColorDepth(int bpp) => bpp switch

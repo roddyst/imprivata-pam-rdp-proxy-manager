@@ -49,7 +49,8 @@ der Verbindungsdaten ab.
 
 - **Startdialog**: Benutzername, Passwort und optional das Confirm-ID-Token
 - **Hauptfenster**: Zielserver eingeben, Token pro Verbindung ändern, Vorschau des Proxy-Benutzernamens
-- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet
+- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (ohne Token wird vorher danach gefragt)
+- **Zielserver in der Taskleiste** – das Remotedesktop-Fenster trägt den Namen des Zielservers
 - **Profile** mit PAM-Server (Hostname oder URL), RDP-Port (Standard 3388) und RDP-Optionen:
   Vollbild/Fenster & Auflösung, Multi-Monitor, Farbtiefe, Zwischenablage, Laufwerke, Drucker, Audio/Mikrofon,
   NLA (CredSSP), Verhalten bei fehlgeschlagener Serverauthentifizierung, automatische Wiederverbindung,
@@ -83,7 +84,7 @@ vergleicht vorher die SHA256-Prüfsumme mit der im Release angegebenen oder baut
 |-----|----|
 | Einstellungen, Profile, Favoriten, zuletzt verwendete Ziele | `settings.json` **neben der EXE** |
 | Fallback, wenn der EXE-Ordner nicht beschreibbar ist (z. B. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – die App zeigt dann einen Hinweis |
-| Temporäre `.rdp`-Datei (ohne Zugangsdaten) | `%TEMP%\PamRdpProxyManager\` – wird nach dem Verbindungsaufbau gelöscht |
+| Temporäre `.rdp`-Datei (ohne Zugangsdaten, benannt nach dem Zielserver) | `%TEMP%\PamRdpProxyManager\<id>\` – wird nach dem Verbindungsaufbau gelöscht |
 
 Die App legt **keine** Registry-Einträge, Dienste oder Autostart-Einträge an. (Der Windows-Remotedesktop-Client
 selbst führt allerdings wie gewohnt eine eigene Liste zuletzt verwendeter Server und vertrauenswürdiger Zertifikate.)
@@ -173,7 +174,8 @@ directly to the target. This app builds the user name for you and starts the nat
 
 - **Login dialog**: user name, password and optional confirm ID token
 - **Main window**: enter the target server, change the token per connection, preview of the proxy user name
-- **Favorites & recently used targets** – click to select, double-click to connect
+- **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if none was entered)
+- **Target server in the taskbar** – the Remote Desktop window is named after the target server
 - **Profiles** with PAM server (host name or URL), RDP port (default 3388) and RDP options: full screen/window &
   resolution, multi-monitor, color depth, clipboard, drives, printers, audio/microphone, NLA (CredSSP), server
   authentication behavior, auto-reconnect, additional raw `.rdp` settings
@@ -206,7 +208,7 @@ the EXE yourself (see below).
 |------|-------|
 | Settings, profiles, favorites, recent targets | `settings.json` **next to the EXE** |
 | Fallback if the EXE folder is read-only (e.g. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – the app shows a notice |
-| Temporary `.rdp` file (no credentials) | `%TEMP%\PamRdpProxyManager\` – deleted after the connection has been established |
+| Temporary `.rdp` file (no credentials, named after the target server) | `%TEMP%\PamRdpProxyManager\<id>\` – deleted after the connection has been established |
 
 The app creates **no** registry entries, services or autostart entries. (The Windows Remote Desktop client itself
 keeps its usual list of recent servers and trusted certificates.)
