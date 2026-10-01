@@ -20,10 +20,18 @@ public static class RdpFileBuilder
         "alternate full address",
         "server port",
         "prompt for credentials",
-        "gatewaycredentialssource",
-        "gatewayusername",
-        "gatewaypassword",
+        "promptcredentialonce",
+        "kdcproxyname",
+
+        // Have dedicated controls; must not be weakened silently (e.g. by a manipulated settings.json).
+        "authentication level",
+        "enablecredsspsupport",
     ];
+
+    /// <summary>
+    /// An RD gateway could receive the credentials meant for the PAM server, so no gateway settings are accepted.
+    /// </summary>
+    private const string BlockedKeyPrefix = "gateway";
 
     // Fixed list instead of Path.GetInvalidFileNameChars(), which is platform dependent.
     private static readonly char[] InvalidFileNameChars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -104,7 +112,8 @@ public static class RdpFileBuilder
                 continue;
             }
 
-            if (BlockedKeys.Contains(parts[0].Trim(), StringComparer.OrdinalIgnoreCase))
+            var key = parts[0].Trim();
+            if (BlockedKeys.Contains(key, StringComparer.OrdinalIgnoreCase) || key.StartsWith(BlockedKeyPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }

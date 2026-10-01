@@ -7,10 +7,10 @@ namespace PamRdpProxyManager.Views;
 /// <summary>Asks for the Confirm-ID-Token before connecting to <c>targetHost</c>.</summary>
 public partial class TokenPromptWindow : FluentWindow
 {
-    public TokenPromptWindow(string targetHost)
+    public TokenPromptWindow(string targetHost, string? reason = null)
     {
         InitializeComponent();
-        TargetInfo.Text = $"Für die Verbindung zu „{targetHost}“ wurde noch kein Token eingegeben.";
+        TargetInfo.Text = reason ?? $"Für die Verbindung zu „{targetHost}“ wurde noch kein Token eingegeben.";
         Loaded += (_, _) => TokenBox.Focus();
     }
 

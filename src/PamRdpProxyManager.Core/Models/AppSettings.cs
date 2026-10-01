@@ -32,6 +32,20 @@ public class AppSettings
     /// </summary>
     public int CredentialCleanupDelaySeconds { get; set; } = 15;
 
+    public const int MinMfaValidityHours = 1;
+    public const int MaxMfaValidityHours = 168;
+
+    /// <summary>
+    /// The PAM server accepts a confirm ID token for <see cref="MfaValidityHours"/>. While it is valid the token is
+    /// not sent again (<c>user##rdphost</c>); afterwards the app asks for a new one.
+    /// </summary>
+    public bool MfaValidityEnabled { get; set; } = true;
+
+    public int MfaValidityHours { get; set; } = 8;
+
+    /// <summary>When a token was entered per user and PAM server (hashed id, no token).</summary>
+    public List<MfaSession> MfaSessions { get; set; } = [];
+
     /// <summary>Migrates older files and ensures there is at least one profile and a valid active profile.</summary>
     public void Normalize()
     {
@@ -60,5 +74,8 @@ public class AppSettings
         RecentTargets.RemoveAll(t => t is null || string.IsNullOrWhiteSpace(t.Host));
         MaxRecentTargets = Math.Clamp(MaxRecentTargets, 1, 200);
         CredentialCleanupDelaySeconds = Math.Clamp(CredentialCleanupDelaySeconds, 5, 300);
+        MfaValidityHours = Math.Clamp(MfaValidityHours, MinMfaValidityHours, MaxMfaValidityHours);
+        MfaSessions ??= [];
+        Services.MfaSessionTracker.Prune(this, DateTimeOffset.Now);
     }
 }

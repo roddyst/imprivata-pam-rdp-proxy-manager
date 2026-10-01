@@ -1,8 +1,11 @@
 using System.Windows;
 using System.Windows.Controls.Primitives;
+using System.Runtime.InteropServices;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using PamRdpProxyManager.Core.Models;
+using PamRdpProxyManager.Services;
 using PamRdpProxyManager.ViewModels;
 using Wpf.Ui.Controls;
 
@@ -15,6 +18,24 @@ public partial class MainWindow : FluentWindow
         DataContext = viewModel;
         InitializeComponent();
         Loaded += (_, _) => TargetBox.Focus();
+        viewModel.MfaExpired += (_, _) => FlashTaskbar();
+    }
+
+    /// <summary>Makes the token reminder noticeable while the user works in a remote session.</summary>
+    private void FlashTaskbar()
+    {
+        if (IsActive)
+        {
+            return;
+        }
+
+        var info = new NativeMethods.FLASHWINFO
+        {
+            cbSize = (uint)Marshal.SizeOf<NativeMethods.FLASHWINFO>(),
+            hwnd = new WindowInteropHelper(this).Handle,
+            dwFlags = NativeMethods.FLASHW_ALL | NativeMethods.FLASHW_TIMERNOFG,
+        };
+        NativeMethods.FlashWindowEx(ref info);
     }
 
     private MainViewModel ViewModel => (MainViewModel)DataContext;

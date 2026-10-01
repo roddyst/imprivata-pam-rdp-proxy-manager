@@ -62,6 +62,7 @@ public partial class App : Application
         main.Closed += (_, _) =>
         {
             vm.TrySave(showSuccess: false);
+            vm.Dispose();
             _launcher.CleanupNow();
             _session?.Dispose();
             _session = null;

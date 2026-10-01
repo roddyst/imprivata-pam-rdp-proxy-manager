@@ -49,7 +49,11 @@ der Verbindungsdaten ab.
 
 - **Startdialog**: Benutzername, Passwort und optional das Confirm-ID-Token
 - **Hauptfenster**: Zielserver eingeben, Token pro Verbindung ändern, Vorschau des Proxy-Benutzernamens
-- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (ohne Token wird vorher danach gefragt)
+- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (wird ein Token benötigt, wird vorher danach gefragt)
+- **Token-Gültigkeit (MFA)** – das Confirm-ID-Token wird nur einmal eingegeben; innerhalb der einstellbaren Gültigkeit
+  (Standard: aktiv, **8 Stunden**) verbindet die App mit `user##rdphost`, ohne das Token erneut an den PAM-Server zu
+  übergeben. Läuft die Gültigkeit ab, erinnert die App daran (Hinweis im Fenster, Taskleiste blinkt) und fragt beim
+  nächsten Verbinden nach einem neuen Token. „Token neu eingeben“ verwirft die Gültigkeit vorzeitig.
 - **Zielserver in der Taskleiste** – das Remotedesktop-Fenster trägt den Namen des Zielservers
 - **Profile** mit PAM-Server (Hostname oder URL), RDP-Port (Standard 3388) und RDP-Optionen:
   Vollbild/Fenster & Auflösung, Multi-Monitor, Farbtiefe, Zwischenablage, Laufwerke, Drucker, Audio/Mikrofon,
@@ -82,7 +86,7 @@ vergleicht vorher die SHA256-Prüfsumme mit der im Release angegebenen oder baut
 
 | Was | Wo |
 |-----|----|
-| Einstellungen, Profile, Favoriten, zuletzt verwendete Ziele | `settings.json` **neben der EXE** |
+| Einstellungen, Profile, Favoriten, zuletzt verwendete Ziele, Zeitpunkt der letzten Token-Eingabe (ohne Token, Benutzer/Server nur als Hash) | `settings.json` **neben der EXE** |
 | Fallback, wenn der EXE-Ordner nicht beschreibbar ist (z. B. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – die App zeigt dann einen Hinweis |
 | Temporäre `.rdp`-Datei (ohne Zugangsdaten, benannt nach dem Zielserver) | `%TEMP%\PamRdpProxyManager\<id>\` – wird nach dem Verbindungsaufbau gelöscht |
 
@@ -95,7 +99,12 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 ### Sicherheit
 
 - **Passwort und Token werden nie auf Disk gespeichert** und nicht geloggt. Das Passwort liegt nur als
-  `SecureString` im Arbeitsspeicher und wird nie in einen normalen String umgewandelt.
+  `SecureString` im Arbeitsspeicher – unter Windows per `CryptProtectMemory` prozessgebunden verschlüsselt – und wird
+  nie in einen normalen String umgewandelt.
+- Das Token wird nach der Übergabe an den PAM-Server verworfen (bei aktivierter Token-Gültigkeit immer). Für die
+  Gültigkeit wird nur der **Zeitpunkt** der Eingabe gespeichert.
+- Zusätzliche `.rdp`-Einstellungen können weder Zugangsdaten, Serveradresse, RD-Gateway (`gateway*`,
+  `promptcredentialonce`, `kdcproxyname`) noch NLA/Serverauthentifizierung überschreiben.
 - Die `settings.json` enthält ausschließlich Server, Profile, RDP-Optionen, Ziele und (optional) den Benutzernamen.
 - Die temporäre `.rdp`-Datei enthält **weder Passwort noch Token noch Benutzernamen** – nur Serveradresse und Optionen.
 - Die Zugangsdaten werden mstsc über einen temporären Eintrag `TERMSRV/<PAM-Server>` in der
@@ -174,7 +183,11 @@ directly to the target. This app builds the user name for you and starts the nat
 
 - **Login dialog**: user name, password and optional confirm ID token
 - **Main window**: enter the target server, change the token per connection, preview of the proxy user name
-- **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if none was entered)
+- **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if one is needed)
+- **Token validity (MFA)** – the confirm ID token is entered once; within the configurable validity (default: enabled,
+  **8 hours**) the app connects with `user##rdphost` without passing the token to the PAM server again. When the
+  validity expires the app reminds you (notice in the window, flashing taskbar button) and asks for a new token on the
+  next connection. "Token neu eingeben" discards the validity early.
 - **Target server in the taskbar** – the Remote Desktop window is named after the target server
 - **Profiles** with PAM server (host name or URL), RDP port (default 3388) and RDP options: full screen/window &
   resolution, multi-monitor, color depth, clipboard, drives, printers, audio/microphone, NLA (CredSSP), server
@@ -206,7 +219,7 @@ the EXE yourself (see below).
 
 | What | Where |
 |------|-------|
-| Settings, profiles, favorites, recent targets | `settings.json` **next to the EXE** |
+| Settings, profiles, favorites, recent targets, time of the last token entry (no token; user/server hashed) | `settings.json` **next to the EXE** |
 | Fallback if the EXE folder is read-only (e.g. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – the app shows a notice |
 | Temporary `.rdp` file (no credentials, named after the target server) | `%TEMP%\PamRdpProxyManager\<id>\` – deleted after the connection has been established |
 
@@ -219,7 +232,12 @@ part of the .NET single-file format and needs no special rights.
 ### Security
 
 - **Passwords and tokens are never written to disk** and never logged. The password is held in memory as a
-  `SecureString` only and is never converted into a regular string.
+  `SecureString` only – encrypted per process with `CryptProtectMemory` on Windows – and is never converted into a
+  regular string.
+- The token is discarded once it has been passed to the PAM server (always, if the token validity is enabled). Only
+  the **time** of the entry is stored for the validity.
+- Additional `.rdp` settings cannot override credentials, the server address, RD gateway settings (`gateway*`,
+  `promptcredentialonce`, `kdcproxyname`), NLA or server authentication.
 - `settings.json` only contains servers, profiles, RDP options, targets and (optionally) the user name.
 - The temporary `.rdp` file contains **no password, no token and no user name** – only the server address and options.
 - Credentials are handed to mstsc through a temporary `TERMSRV/<PAM server>` entry in the Windows Credential Manager

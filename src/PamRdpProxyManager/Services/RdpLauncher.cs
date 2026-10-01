@@ -29,6 +29,9 @@ public sealed class RdpLauncher : IDisposable
 
     public static string TempDirectory { get; } = Path.Combine(Path.GetTempPath(), "PamRdpProxyManager");
 
+    /// <summary>Longer than the maximum cleanup delay (300 s).</summary>
+    private static readonly TimeSpan LeftoverMinAge = TimeSpan.FromMinutes(10);
+
     public static string MstscPath => Path.Combine(Environment.SystemDirectory, "mstsc.exe");
 
     /// <summary><c>true</c> while a previous connection still holds the temporary credential.</summary>
@@ -42,7 +45,8 @@ public sealed class RdpLauncher : IDisposable
     {
         try
         {
-            CredentialManager.DeleteLeftovers();
+            // Same age limit as for the files: entries of a concurrently running instance are younger.
+            CredentialManager.DeleteLeftovers(LeftoverMinAge);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -57,7 +61,7 @@ public sealed class RdpLauncher : IDisposable
             }
 
             // Files of a concurrently running instance are younger than its cleanup delay.
-            var cutoff = DateTime.UtcNow.AddMinutes(-10);
+            var cutoff = DateTime.UtcNow - LeftoverMinAge;
             foreach (var file in Directory.EnumerateFiles(TempDirectory, "*.rdp"))
             {
                 if (File.GetLastWriteTimeUtc(file) < cutoff)
