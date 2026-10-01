@@ -87,4 +87,24 @@ public class RdpFileBuilderTests
     [InlineData(70000)]
     public void Build_InvalidPort_Throws(int port) =>
         Assert.Throws<ArgumentOutOfRangeException>(() => RdpFileBuilder.Build("pam.example.com", port, new RdpOptions()));
+
+    [Theory]
+    [InlineData("server01.example.com", "server01.example.com.rdp")]
+    [InlineData("  server01  ", "server01.rdp")]
+    [InlineData("srv:3389", "srv_3389.rdp")]
+    [InlineData("a/b\\c*?", "a_b_c__.rdp")]
+    [InlineData("server.", "server.rdp")]
+    [InlineData("CON", "_CON.rdp")]
+    [InlineData("", "Remotedesktop.rdp")]
+    [InlineData(null, "Remotedesktop.rdp")]
+    public void FileNameFor_ProducesWindowsSafeNames(string? host, string expected)
+    {
+        Assert.Equal(expected, RdpFileBuilder.FileNameFor(host));
+    }
+
+    [Fact]
+    public void FileNameFor_LimitsLength()
+    {
+        Assert.Equal(104, RdpFileBuilder.FileNameFor(new string('a', 300)).Length);
+    }
 }

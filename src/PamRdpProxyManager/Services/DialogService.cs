@@ -22,6 +22,12 @@ public sealed class DialogService : IDialogService
         await box.ShowDialogAsync();
     }
 
+    public string? PromptToken(string targetHost)
+    {
+        var window = new Views.TokenPromptWindow(targetHost) { Owner = Application.Current.MainWindow };
+        return window.ShowDialog() == true ? window.Token : null;
+    }
+
     private static Wpf.Ui.Controls.MessageBox Create(string title, string message) => new()
     {
         Title = title,

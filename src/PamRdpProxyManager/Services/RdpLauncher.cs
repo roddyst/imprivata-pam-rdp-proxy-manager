@@ -7,6 +7,7 @@ using PamRdpProxyManager.Core.Services;
 namespace PamRdpProxyManager.Services;
 
 public sealed record LaunchRequest(
+    string TargetHost,
     string ProxyHost,
     int Port,
     Core.Models.RdpOptions Options,
@@ -55,12 +56,21 @@ public sealed class RdpLauncher : IDisposable
                 return;
             }
 
+            // Files of a concurrently running instance are younger than its cleanup delay.
+            var cutoff = DateTime.UtcNow.AddMinutes(-10);
             foreach (var file in Directory.EnumerateFiles(TempDirectory, "*.rdp"))
             {
-                // Files of a concurrently running instance are younger than its cleanup delay.
-                if (File.GetLastWriteTimeUtc(file) < DateTime.UtcNow.AddMinutes(-10))
+                if (File.GetLastWriteTimeUtc(file) < cutoff)
                 {
                     TryDelete(file);
+                }
+            }
+
+            foreach (var directory in Directory.EnumerateDirectories(TempDirectory))
+            {
+                if (Directory.GetLastWriteTimeUtc(directory) < cutoff)
+                {
+                    TryDeleteDirectory(directory);
                 }
             }
         }
@@ -86,8 +96,11 @@ public sealed class RdpLauncher : IDisposable
         try
         {
             var content = RdpFileBuilder.Build(request.ProxyHost, request.Port, request.Options);
-            Directory.CreateDirectory(TempDirectory);
-            var file = Path.Combine(TempDirectory, $"{Guid.NewGuid():N}.rdp");
+            // mstsc shows the .rdp file name in its window title (and the taskbar), so the file is named
+            // after the target server. A unique folder per launch keeps parallel connections apart.
+            var directory = Path.Combine(TempDirectory, Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(directory);
+            var file = Path.Combine(directory, RdpFileBuilder.FileNameFor(request.TargetHost));
             pending = new PendingCleanup(CredentialManager.TargetFor(request.ProxyHost), file);
             lock (_pendingLock)
             {
@@ -183,6 +196,25 @@ public sealed class RdpLauncher : IDisposable
         }
 
         TryDelete(item.RdpFile);
+        if (Path.GetDirectoryName(item.RdpFile) is { } directory && !PathEquals(directory, TempDirectory))
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static bool PathEquals(string a, string b) =>
+        string.Equals(Path.TrimEndingDirectorySeparator(Path.GetFullPath(a)), Path.TrimEndingDirectorySeparator(Path.GetFullPath(b)), StringComparison.OrdinalIgnoreCase);
+
+    private static void TryDeleteDirectory(string directory)
+    {
+        try
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Could not delete temp folder: {ex.GetType().Name}");
+        }
     }
 
     private static void TryDelete(string file)
