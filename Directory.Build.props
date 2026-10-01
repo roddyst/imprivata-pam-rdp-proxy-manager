@@ -1,0 +1,16 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Version>0.1.0</Version>
+    <Authors>Imprivata PAM RDP Proxy Manager contributors</Authors>
+    <Product>Imprivata PAM RDP Proxy Manager</Product>
+    <Copyright>Copyright (c) 2026 Imprivata PAM RDP Proxy Manager contributors</Copyright>
+    <!-- Allows building the Windows/WPF project on Linux/macOS (e.g. CI or dev containers). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Embedded symbols keep the published output to a single EXE. -->
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+</Project>
