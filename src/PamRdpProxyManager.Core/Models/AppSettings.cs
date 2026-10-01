@@ -3,7 +3,7 @@ namespace PamRdpProxyManager.Core.Models;
 /// <summary>Root object of the portable <c>settings.json</c>. Never contains passwords or tokens.</summary>
 public class AppSettings
 {
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -32,6 +32,31 @@ public class AppSettings
     /// </summary>
     public int CredentialCleanupDelaySeconds { get; set; } = 15;
 
+    public const int MinMfaValidityHours = 1;
+    public const int MaxMfaValidityHours = 168;
+
+    /// <summary>
+    /// The PAM server accepts a confirm ID token for <see cref="MfaValidityHours"/>. While it is valid the token is
+    /// not sent again (<c>user##rdphost</c>); afterwards the app asks for a new one.
+    /// </summary>
+    public bool MfaValidityEnabled { get; set; } = true;
+
+    public int MfaValidityHours { get; set; } = 8;
+
+    /// <summary>When a token was entered per user and PAM server (hashed id, no token).</summary>
+    public List<MfaSession> MfaSessions { get; set; } = [];
+
+    public const int MinAutoLogoutMinutes = 5;
+    public const int MaxAutoLogoutMinutes = 1440;
+
+    /// <summary>
+    /// Discard the password after <see cref="AutoLogoutMinutes"/> without keyboard or mouse input on this computer
+    /// (input in a remote desktop session counts as activity).
+    /// </summary>
+    public bool AutoLogoutEnabled { get; set; } = true;
+
+    public int AutoLogoutMinutes { get; set; } = 60;
+
     /// <summary>Migrates older files and ensures there is at least one profile and a valid active profile.</summary>
     public void Normalize()
     {
@@ -47,6 +72,13 @@ public class AppSettings
         SchemaVersion = CurrentSchemaVersion;
 
         Profiles.RemoveAll(p => p is null);
+
+        // "Connect without warning" is no longer offered (version 3); also catches undefined values.
+        foreach (var profile in Profiles.Where(p => p.Rdp is not null))
+        {
+            profile.Rdp.AuthenticationLevel = Services.RdpFileBuilder.NormalizeAuthenticationLevel(profile.Rdp.AuthenticationLevel);
+        }
+
         if (Profiles.Count == 0)
         {
             Profiles.Add(new ConnectionProfile { Name = "Standard", ProxyHost = "pam.example.com" });
@@ -60,5 +92,9 @@ public class AppSettings
         RecentTargets.RemoveAll(t => t is null || string.IsNullOrWhiteSpace(t.Host));
         MaxRecentTargets = Math.Clamp(MaxRecentTargets, 1, 200);
         CredentialCleanupDelaySeconds = Math.Clamp(CredentialCleanupDelaySeconds, 5, 300);
+        MfaValidityHours = Math.Clamp(MfaValidityHours, MinMfaValidityHours, MaxMfaValidityHours);
+        AutoLogoutMinutes = Math.Clamp(AutoLogoutMinutes, MinAutoLogoutMinutes, MaxAutoLogoutMinutes);
+        MfaSessions ??= [];
+        Services.MfaSessionTracker.Prune(this, DateTimeOffset.Now);
     }
 }

@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using PamRdpProxyManager.Core.Models;
@@ -12,6 +13,10 @@ public sealed class SettingsStore
 {
     public const string FileName = "settings.json";
 
+    public const string SignatureFileName = "settings.sig";
+
+    private readonly ISettingsProtector? _protector;
+
     internal static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -21,8 +26,9 @@ public sealed class SettingsStore
         AllowTrailingCommas = true,
     };
 
-    public SettingsStore(string portableDirectory, string fallbackDirectory)
+    public SettingsStore(string portableDirectory, string fallbackDirectory, ISettingsProtector? protector = null)
     {
+        _protector = protector;
         PortableDirectory = portableDirectory;
         FallbackDirectory = fallbackDirectory;
 
@@ -53,12 +59,17 @@ public sealed class SettingsStore
 
     public string FilePath => Path.Combine(Directory, FileName);
 
+    public string SignatureFilePath => Path.Combine(Directory, SignatureFileName);
+
+    /// <summary>Result of the signature check of the last <see cref="Load"/>.</summary>
+    public SettingsVerification Verification { get; private set; } = SettingsVerification.NoFile;
+
     /// <summary>Creates a store for the running executable.</summary>
-    public static SettingsStore ForCurrentProcess(string appFolderName)
+    public static SettingsStore ForCurrentProcess(string appFolderName, ISettingsProtector? protector = null)
     {
         var exeDir = Path.GetDirectoryName(Environment.ProcessPath) ?? AppContext.BaseDirectory;
         var fallback = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), appFolderName);
-        return new SettingsStore(exeDir, fallback);
+        return new SettingsStore(exeDir, fallback, protector);
     }
 
     /// <summary>Loads the settings. A missing or unreadable file yields defaults; a corrupt file is kept as backup.</summary>
@@ -66,12 +77,15 @@ public sealed class SettingsStore
     {
         warning = null;
         AppSettings? settings = null;
+        Verification = SettingsVerification.NoFile;
 
         if (File.Exists(FilePath))
         {
             try
             {
-                settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath), JsonOptions);
+                var content = File.ReadAllBytes(FilePath);
+                settings = JsonSerializer.Deserialize<AppSettings>(Encoding.UTF8.GetString(content).TrimStart('\uFEFF'), JsonOptions);
+                Verification = settings is null ? SettingsVerification.NoFile : Verify(content);
             }
             catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or NotSupportedException)
             {
@@ -96,12 +110,55 @@ public sealed class SettingsStore
     public void Save(AppSettings settings)
     {
         System.IO.Directory.CreateDirectory(Directory);
-        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        var content = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(settings, JsonOptions));
 
-        // Write to a temp file first so a crash never leaves a half-written settings.json behind.
-        var tmp = FilePath + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, FilePath, overwrite: true);
+        // Write to temp files first so a crash never leaves a half-written file behind.
+        WriteAtomically(FilePath, content);
+        if (_protector is not null)
+        {
+            WriteAtomically(SignatureFilePath, _protector.Sign(content));
+            Verification = SettingsVerification.Verified;
+        }
+    }
+
+    /// <summary>Moves an untrusted settings file aside (it is kept for inspection) so defaults are used.</summary>
+    public string Quarantine()
+    {
+        var backup = FilePath + ".untrusted-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        File.Move(FilePath, backup, overwrite: true);
+        if (File.Exists(SignatureFilePath))
+        {
+            File.Delete(SignatureFilePath);
+        }
+
+        Verification = SettingsVerification.NoFile;
+        return backup;
+    }
+
+    private SettingsVerification Verify(byte[] content)
+    {
+        if (_protector is null)
+        {
+            return SettingsVerification.NotChecked;
+        }
+
+        try
+        {
+            return File.Exists(SignatureFilePath) && _protector.Verify(content, File.ReadAllBytes(SignatureFilePath))
+                ? SettingsVerification.Verified
+                : SettingsVerification.Unverified;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return SettingsVerification.Unverified;
+        }
+    }
+
+    private static void WriteAtomically(string path, byte[] content)
+    {
+        var tmp = path + ".tmp";
+        File.WriteAllBytes(tmp, content);
+        File.Move(tmp, path, overwrite: true);
     }
 
     internal static bool IsDirectoryWritable(string directory)

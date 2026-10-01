@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PamRdpProxyManager.Core.Models;
@@ -12,14 +13,20 @@ using Wpf.Ui.Controls;
 
 namespace PamRdpProxyManager.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly SettingsStore _store;
     private readonly AppSettings _settings;
     private readonly UserSession _session;
     private readonly RdpLauncher _launcher;
     private readonly IDialogService _dialogs;
+    private readonly DispatcherTimer _mfaTimer;
+    private readonly EventHandler _cleanupCompleted;
     private bool _suppressRecentSelection;
+
+    /// <summary>User/PAM server combination and validity seen by the last <see cref="RefreshMfaStatus"/>.</summary>
+    private string? _mfaId;
+    private bool _mfaWasValid;
 
     public MainViewModel(SettingsStore store, AppSettings settings, UserSession session, RdpLauncher launcher, IDialogService dialogs, string? startupWarning)
     {
@@ -32,7 +39,7 @@ public partial class MainViewModel : ObservableObject
         Profiles = new ObservableCollection<ConnectionProfile>(settings.Profiles);
         _selectedProfile = Profiles.FirstOrDefault(p => p.Name == settings.ActiveProfileName) ?? Profiles[0];
         RecentTargets = new ObservableCollection<RecentTarget>(RecentTargetList.Ordered(settings.RecentTargets));
-        _token = session.Token;
+        _token = session.TakeToken();
 
         if (!store.IsPortable)
         {
@@ -44,11 +51,30 @@ public partial class MainViewModel : ObservableObject
             ShowStatus("Hinweis", startupWarning, InfoBarSeverity.Warning);
         }
 
-        _launcher.CleanupCompleted += (_, _) => Application.Current?.Dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(IsCleanupPending)));
+        _cleanupCompleted = (_, _) => Application.Current?.Dispatcher.BeginInvoke(() => OnPropertyChanged(nameof(IsCleanupPending)));
+        _launcher.CleanupCompleted += _cleanupCompleted;
+
+        RefreshMfaStatus();
+        _mfaTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _mfaTimer.Tick += (_, _) =>
+        {
+            RefreshMfaStatus();
+            CheckIdleLogout();
+        };
+        _mfaTimer.Start();
     }
 
-    /// <summary>Raised when the user wants to log out (returns to the login dialog).</summary>
-    public event EventHandler? LogoutRequested;
+    public void Dispose()
+    {
+        _mfaTimer.Stop();
+        _launcher.CleanupCompleted -= _cleanupCompleted;
+    }
+
+    /// <summary>Raised when the validity of the entered token has expired (reminder to enter a new one).</summary>
+    public event EventHandler? MfaExpired;
+
+    /// <summary>Raised to log out (returns to the login dialog); the argument is a notice for the login dialog.</summary>
+    public event EventHandler<string?>? LogoutRequested;
 
     public string UserName => _session.UserName;
 
@@ -96,6 +122,24 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private InfoBarSeverity _statusSeverity = InfoBarSeverity.Informational;
 
+    /// <summary><c>true</c> while the token entered for the current user and PAM server is still valid.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TokenPlaceholder))]
+    private bool _isMfaValid;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasMfaStatus))]
+    private string _mfaStatus = string.Empty;
+
+    public bool HasMfaStatus => MfaStatus.Length > 0;
+
+    [ObservableProperty]
+    private InfoBarSeverity _mfaSeverity = InfoBarSeverity.Informational;
+
+    public bool IsMfaEnabled => _settings.MfaValidityEnabled;
+
+    public string TokenPlaceholder => IsMfaValid ? "Nicht erforderlich – MFA noch gültig" : "Imprivata ID Token";
+
     /// <summary>Shows how the proxy user name will look (token masked).</summary>
     public string UsernamePreview
     {
@@ -125,6 +169,43 @@ public partial class MainViewModel : ObservableObject
     {
         get => _settings.CredentialCleanupDelaySeconds;
         set => SetProperty(_settings.CredentialCleanupDelaySeconds, value, _settings, (s, v) => s.CredentialCleanupDelaySeconds = v);
+    }
+
+    public bool MfaValidityEnabled
+    {
+        get => _settings.MfaValidityEnabled;
+        set
+        {
+            if (SetProperty(_settings.MfaValidityEnabled, value, _settings, (s, v) => s.MfaValidityEnabled = v))
+            {
+                OnPropertyChanged(nameof(IsMfaEnabled));
+                RefreshMfaStatus();
+            }
+        }
+    }
+
+    public int MfaValidityHours
+    {
+        get => _settings.MfaValidityHours;
+        set
+        {
+            if (SetProperty(_settings.MfaValidityHours, value, _settings, (s, v) => s.MfaValidityHours = v))
+            {
+                RefreshMfaStatus();
+            }
+        }
+    }
+
+    public bool AutoLogoutEnabled
+    {
+        get => _settings.AutoLogoutEnabled;
+        set => SetProperty(_settings.AutoLogoutEnabled, value, _settings, (s, v) => s.AutoLogoutEnabled = v);
+    }
+
+    public int AutoLogoutMinutes
+    {
+        get => _settings.AutoLogoutMinutes;
+        set => SetProperty(_settings.AutoLogoutMinutes, value, _settings, (s, v) => s.AutoLogoutMinutes = v);
     }
 
     public int MaxRecentTargets
@@ -170,9 +251,9 @@ public partial class MainViewModel : ObservableObject
 
     public IReadOnlyList<Option<ServerAuthenticationLevel>> AuthenticationLevels { get; } =
     [
-        new(ServerAuthenticationLevel.Warn, "Warnen (empfohlen)"),
-        new(ServerAuthenticationLevel.DoNotConnect, "Nicht verbinden"),
-        new(ServerAuthenticationLevel.ConnectWithoutWarning, "Ohne Warnung verbinden"),
+        // "Connect without warning" is deliberately not offered: it allows man-in-the-middle attacks on the password.
+        new(ServerAuthenticationLevel.Warn, "Warnen"),
+        new(ServerAuthenticationLevel.DoNotConnect, "Nicht verbinden (am sichersten)"),
     ];
 
     public IReadOnlyList<Option<AppTheme>> Themes { get; } =
@@ -211,14 +292,39 @@ public partial class MainViewModel : ObservableObject
         }
 
         var target = TargetHost.Trim();
-        var validationError = UsernameBuilder.Validate(_session.UserName, Token, target);
+        var targetError = UsernameBuilder.ValidateTarget(target);
+        if (targetError is not null)
+        {
+            ShowStatus("Eingabe ungültig", targetError, InfoBarSeverity.Error);
+            return;
+        }
+
+        // While a previously entered token is still valid the PAM server does not need it again (user##rdphost).
+        // Afterwards a new token is requested before connecting.
+        var token = Token.Trim();
+        var mfaEnabled = _settings.MfaValidityEnabled;
+        if (mfaEnabled && token.Length == 0 && !MfaSessionTracker.IsValid(_settings, _session.UserName, proxyHost, DateTimeOffset.Now))
+        {
+            var expired = MfaSessionTracker.ExpiresAt(_settings, _session.UserName, proxyHost, DateTimeOffset.Now) is not null;
+            var prompted = _dialogs.PromptToken(
+                target,
+                expired ? $"Die Gültigkeit des Tokens ({_settings.MfaValidityHours} h) ist abgelaufen. Bitte für die Verbindung zu „{target}“ ein neues Token eingeben." : null);
+            if (prompted is null)
+            {
+                return;
+            }
+
+            token = prompted.Trim();
+        }
+
+        var validationError = UsernameBuilder.Validate(_session.UserName, token, target);
         if (validationError is not null)
         {
             ShowStatus("Eingabe ungültig", validationError, InfoBarSeverity.Error);
             return;
         }
 
-        var proxyUser = UsernameBuilder.Build(_session.UserName, Token, target);
+        var proxyUser = UsernameBuilder.Build(_session.UserName, token, target);
 
         if (!await ConfirmExistingCredentialAsync(CredentialManager.TargetFor(proxyHost)))
         {
@@ -235,14 +341,21 @@ public partial class MainViewModel : ObservableObject
                 onWaiting: () => ShowStatus("Bitte warten …", "Die vorherige Verbindung wird noch aufgebaut. Danach wird automatisch verbunden.", InfoBarSeverity.Informational));
             OnPropertyChanged(nameof(IsCleanupPending));
 
-            RecentTargetList.Touch(_settings, target, profile.Name);
-            RefreshRecentTargets();
-            TrySave(showSuccess: false);
-
-            if (_settings.ClearTokenAfterConnect)
+            if (mfaEnabled && token.Length > 0)
+            {
+                // The validity starts with this token; it is not needed (and not kept) any more.
+                MfaSessionTracker.Start(_settings, _session.UserName, proxyHost, DateTimeOffset.Now);
+                Token = string.Empty;
+                RefreshMfaStatus();
+            }
+            else if (_settings.ClearTokenAfterConnect)
             {
                 Token = string.Empty;
             }
+
+            RecentTargetList.Touch(_settings, target, profile.Name);
+            RefreshRecentTargets();
+            TrySave(showSuccess: false);
 
             ShowStatus(
                 "Remotedesktop gestartet",
@@ -273,7 +386,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(Token))
+        // With the token validity enabled, ConnectAsync asks for a token only when one is needed.
+        if (!_settings.MfaValidityEnabled && string.IsNullOrWhiteSpace(Token))
         {
             var token = _dialogs.PromptToken(target.Host);
             if (token is null)
@@ -315,6 +429,75 @@ public partial class MainViewModel : ObservableObject
             _ => true,
         };
     }
+
+    // ----- Token validity (MFA) -----
+
+    [RelayCommand]
+    private void ResetMfa()
+    {
+        if (CurrentProxyHost() is { } proxyHost && MfaSessionTracker.Reset(_settings, _session.UserName, proxyHost))
+        {
+            TrySave(showSuccess: false);
+        }
+
+        RefreshMfaStatus();
+        ShowStatus("Token zurückgesetzt", "Beim nächsten Verbinden wird ein neues Confirm-ID-Token abgefragt.", InfoBarSeverity.Informational);
+    }
+
+    private string? CurrentProxyHost() =>
+        ProxyHostParser.TryParse(SelectedProfile?.ProxyHost, out var host, out _, out _) ? host : null;
+
+    /// <summary>Updates the validity display and reminds the user once the token has expired.</summary>
+    private void RefreshMfaStatus()
+    {
+        var now = DateTimeOffset.Now;
+        var proxyHost = CurrentProxyHost();
+        var id = proxyHost is null ? null : MfaSessionTracker.IdFor(_session.UserName, proxyHost);
+        var expiresAt = proxyHost is null ? null : MfaSessionTracker.ExpiresAt(_settings, _session.UserName, proxyHost, now);
+        var valid = expiresAt is { } end && now < end;
+
+        // Only remind when the validity ran out (not after a reset, disabling the feature or switching the PAM server).
+        var expiredJustNow = id == _mfaId && _mfaWasValid && !valid && expiresAt is not null;
+        _mfaId = id;
+        _mfaWasValid = valid;
+        IsMfaValid = valid;
+
+        if (!_settings.MfaValidityEnabled || proxyHost is null)
+        {
+            MfaStatus = string.Empty;
+        }
+        else if (expiresAt is not { } expires)
+        {
+            MfaStatus = "Noch kein Token eingegeben – beim Verbinden wird danach gefragt.";
+            MfaSeverity = InfoBarSeverity.Informational;
+        }
+        else if (valid)
+        {
+            MfaStatus = $"Token bestätigt – bis {FormatTime(expires, now)} (noch {FormatDuration(expires - now)}) muss es nicht erneut eingegeben werden.";
+            MfaSeverity = InfoBarSeverity.Success;
+        }
+        else
+        {
+            MfaStatus = $"Token seit {FormatTime(expires, now)} abgelaufen – bitte beim nächsten Verbinden ein neues Token eingeben.";
+            MfaSeverity = InfoBarSeverity.Warning;
+        }
+
+        if (expiredJustNow)
+        {
+            ShowStatus(
+                "Confirm-ID-Token abgelaufen",
+                $"Die Gültigkeit des Tokens ({_settings.MfaValidityHours} h) ist abgelaufen. Bitte beim nächsten Verbinden ein neues Token eingeben.",
+                InfoBarSeverity.Warning);
+            MfaExpired?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private static string FormatTime(DateTimeOffset time, DateTimeOffset now) =>
+        time.LocalDateTime.Date == now.LocalDateTime.Date ? $"{time.LocalDateTime:HH:mm} Uhr" : $"{time.LocalDateTime:dd.MM. HH:mm} Uhr";
+
+    private static string FormatDuration(TimeSpan span) => span.TotalMinutes < 1
+        ? "weniger als 1 min"
+        : span.TotalHours >= 1 ? $"{(int)span.TotalHours} h {span.Minutes} min" : $"{span.Minutes} min";
 
     // ----- Recent targets / favorites -----
 
@@ -409,6 +592,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         _settings.ActiveProfileName = value.Name;
+        RefreshMfaStatus();
     }
 
     [RelayCommand]
@@ -500,6 +684,8 @@ public partial class MainViewModel : ObservableObject
         _settings.Normalize();
         OnPropertyChanged(nameof(CleanupDelaySeconds));
         OnPropertyChanged(nameof(MaxRecentTargets));
+        OnPropertyChanged(nameof(MfaValidityHours));
+        OnPropertyChanged(nameof(AutoLogoutMinutes));
         _settings.LastUserName = _settings.RememberUserName ? _session.UserName : null;
 
         try
@@ -534,7 +720,24 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Logout() => LogoutRequested?.Invoke(this, EventArgs.Empty);
+    private void Logout() => LogoutRequested?.Invoke(this, null);
+
+    /// <summary>Discards the password when nobody has used this computer for the configured time.</summary>
+    private void CheckIdleLogout()
+    {
+        // Never interrupt a connection that is still being established (the credential is in use).
+        if (!_settings.AutoLogoutEnabled || IsConnecting || _launcher.IsBusy)
+        {
+            return;
+        }
+
+        var limit = TimeSpan.FromMinutes(Math.Clamp(_settings.AutoLogoutMinutes, AppSettings.MinAutoLogoutMinutes, AppSettings.MaxAutoLogoutMinutes));
+        if (SystemState.IdleTime >= limit)
+        {
+            _mfaTimer.Stop();
+            LogoutRequested?.Invoke(this, $"Sie wurden nach {(int)limit.TotalMinutes} Minuten ohne Aktivität automatisch abgemeldet. Das Passwort wurde aus dem Speicher entfernt.");
+        }
+    }
 
     private void ShowStatus(string title, string message, InfoBarSeverity severity)
     {

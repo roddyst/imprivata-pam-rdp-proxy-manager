@@ -22,9 +22,9 @@ public sealed class DialogService : IDialogService
         await box.ShowDialogAsync();
     }
 
-    public string? PromptToken(string targetHost)
+    public string? PromptToken(string targetHost, string? reason = null)
     {
-        var window = new Views.TokenPromptWindow(targetHost) { Owner = Application.Current.MainWindow };
+        var window = new Views.TokenPromptWindow(targetHost, reason) { Owner = Application.Current.MainWindow };
         return window.ShowDialog() == true ? window.Token : null;
     }
 

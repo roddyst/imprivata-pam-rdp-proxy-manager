@@ -34,6 +34,35 @@ public class RdpFileBuilderTests
     }
 
     [Fact]
+    public void Build_IgnoresGatewayAndSecurityOverrides()
+    {
+        var options = new RdpOptions
+        {
+            AdditionalSettings = "gatewayhostname:s:evil.example.com\nGatewayUsageMethod:i:1\npromptcredentialonce:i:1\n" +
+                "kdcproxyname:s:evil.example.com\nauthentication level:i:0\nenablecredsspsupport:i:0",
+        };
+        var content = RdpFileBuilder.Build("pam.example.com", 3388, options);
+        var rdp = Parse(content);
+
+        Assert.DoesNotContain("gateway", content, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("evil.example.com", content);
+        Assert.DoesNotContain("promptcredentialonce", content);
+        Assert.Equal("2", rdp["authentication level"]);
+        Assert.Equal("1", rdp["enablecredsspsupport"]);
+    }
+
+    [Theory]
+    [InlineData(ServerAuthenticationLevel.ConnectWithoutWarning, "2")]
+    [InlineData((ServerAuthenticationLevel)7, "2")]
+    [InlineData(ServerAuthenticationLevel.Warn, "2")]
+    [InlineData(ServerAuthenticationLevel.DoNotConnect, "1")]
+    public void Build_NeverConnectsWithoutWarning(ServerAuthenticationLevel level, string expected)
+    {
+        var rdp = Parse(RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { AuthenticationLevel = level }));
+        Assert.Equal(expected, rdp["authentication level"]);
+    }
+
+    [Fact]
     public void Build_MapsOptions()
     {
         var options = new RdpOptions

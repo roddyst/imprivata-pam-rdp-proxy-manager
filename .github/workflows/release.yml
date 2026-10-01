@@ -6,6 +6,9 @@ on:
 
 permissions:
   contents: write
+  # Build provenance attestation (verifiable with `gh attestation verify`)
+  id-token: write
+  attestations: write
 
 jobs:
   release:
@@ -32,11 +35,51 @@ jobs:
 
           $name = "PamRdpProxyManager-$($env:GITHUB_REF_NAME)-win-x64.exe"
           Move-Item publish/PamRdpProxyManager.exe $name
+          "ASSET=$name" | Out-File -Encoding utf8 -Append $env:GITHUB_ENV
+
+      # Authenticode signing runs only if a code signing certificate is configured as repository secrets:
+      #   SIGNING_CERTIFICATE_PFX_BASE64  – the .pfx file, base64 encoded
+      #   SIGNING_CERTIFICATE_PASSWORD    – its password
+      - name: Sign EXE (Authenticode)
+        shell: pwsh
+        env:
+          CERT_PFX: ${{ secrets.SIGNING_CERTIFICATE_PFX_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:CERT_PFX) {
+            Write-Host "::warning::No code signing certificate configured – the EXE stays unsigned."
+            exit 0
+          }
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { throw "signtool.exe not found" }
+
+          $pfx = Join-Path $env:RUNNER_TEMP "signing.pfx"
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_PFX))
+          try {
+            & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:CERT_PASSWORD `
+              /tr http://timestamp.digicert.com /td SHA256 /d "Imprivata PAM RDP Proxy Manager" $env:ASSET
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            & $signtool.FullName verify /pa $env:ASSET
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Remove-Item $pfx -Force
+          }
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $name = $env:ASSET
           $hash = (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant()
           # Format compatible with `sha256sum -c`
           "$hash  $name" | Out-File -Encoding ascii -NoNewline "$name.sha256"
-          "ASSET=$name" | Out-File -Encoding utf8 -Append $env:GITHUB_ENV
           "## SHA256`n`n``$hash  $name``" | Out-File -Encoding utf8 -Append $env:GITHUB_STEP_SUMMARY
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ env.ASSET }}
 
       - name: Create GitHub release
         shell: pwsh
@@ -44,7 +87,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $hash = (Get-Content "$env:ASSET.sha256").Split(' ')[0]
-          $notes = "Portable EXE – keine Installation und keine Adminrechte nötig.`n`nSHA256 (``$env:ASSET``):`n``````n$hash`n``````"
+          $notes = "Portable EXE – keine Installation und keine Adminrechte nötig.`n`nSHA256 (``$env:ASSET``):`n``````n$hash`n```````n`nHerkunft prüfen (von GitHub Actions aus diesem Repository gebaut):`n``````n" +
+            "gh attestation verify $env:ASSET --repo $env:GITHUB_REPOSITORY`n``````"
           $prerelease = if ($env:GITHUB_REF_NAME.Contains('-')) { '--prerelease' } else { $null }
 
           gh release view $env:GITHUB_REF_NAME *> $null

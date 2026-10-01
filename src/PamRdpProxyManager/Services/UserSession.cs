@@ -13,15 +13,25 @@ public sealed class UserSession : IDisposable
         UserName = userName.Trim();
         Password = password.Copy();
         Password.MakeReadOnly();
-        Token = token?.Trim() ?? string.Empty;
+        _token = token?.Trim() ?? string.Empty;
     }
+
+    private string? _token;
 
     public string UserName { get; }
 
     public SecureString Password { get; }
 
-    /// <summary>Confirm ID token entered in the login dialog (optional, may be replaced per connection).</summary>
-    public string Token { get; }
+    /// <summary>
+    /// Returns the confirm ID token entered in the login dialog (may be empty) and drops the session's reference,
+    /// so the token is not kept for the whole session.
+    /// </summary>
+    public string TakeToken()
+    {
+        var token = _token ?? string.Empty;
+        _token = null;
+        return token;
+    }
 
     public void Dispose() => Password.Dispose();
 }

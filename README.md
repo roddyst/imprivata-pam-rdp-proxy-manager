@@ -49,7 +49,11 @@ der Verbindungsdaten ab.
 
 - **Startdialog**: Benutzername, Passwort und optional das Confirm-ID-Token
 - **Hauptfenster**: Zielserver eingeben, Token pro Verbindung ändern, Vorschau des Proxy-Benutzernamens
-- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (ohne Token wird vorher danach gefragt)
+- **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (wird ein Token benötigt, wird vorher danach gefragt)
+- **Token-Gültigkeit (MFA)** – das Confirm-ID-Token wird nur einmal eingegeben; innerhalb der einstellbaren Gültigkeit
+  (Standard: aktiv, **8 Stunden**) verbindet die App mit `user##rdphost`, ohne das Token erneut an den PAM-Server zu
+  übergeben. Läuft die Gültigkeit ab, erinnert die App daran (Hinweis im Fenster, Taskleiste blinkt) und fragt beim
+  nächsten Verbinden nach einem neuen Token. „Token neu eingeben“ verwirft die Gültigkeit vorzeitig.
 - **Zielserver in der Taskleiste** – das Remotedesktop-Fenster trägt den Namen des Zielservers
 - **Profile** mit PAM-Server (Hostname oder URL), RDP-Port (Standard 3388) und RDP-Optionen:
   Vollbild/Fenster & Auflösung, Multi-Monitor, Farbtiefe, Zwischenablage, Laufwerke, Drucker, Audio/Mikrofon,
@@ -60,9 +64,11 @@ der Verbindungsdaten ab.
 ### Download & Nutzung (portable EXE)
 
 1. Unter [**Releases**](../../releases) die Datei `PamRdpProxyManager-vX.Y.Z-win-x64.exe` herunterladen.
-2. Optional die Prüfsumme kontrollieren (die `.sha256`-Datei liegt daneben):
+2. Optional die Prüfsumme kontrollieren (die `.sha256`-Datei liegt daneben) und die Herkunft prüfen – die
+   Attestierung belegt, dass die EXE von GitHub Actions aus diesem Repository gebaut wurde:
    ```powershell
    Get-FileHash .\PamRdpProxyManager-vX.Y.Z-win-x64.exe -Algorithm SHA256
+   gh attestation verify .\PamRdpProxyManager-vX.Y.Z-win-x64.exe --repo roddyst/imprivata-pam-rdp-proxy-manager
    ```
 3. EXE in einen beliebigen, **beschreibbaren** Ordner legen (z. B. `C:\Tools\PamRdp\` oder USB-Stick) und starten.
    Keine Installation, keine Adminrechte, kein vorinstalliertes .NET erforderlich.
@@ -74,7 +80,9 @@ Voraussetzungen: Windows 10/11 x64 mit dem integrierten Remotedesktop-Client (`m
 
 #### SmartScreen-Hinweis
 
-Die EXE ist **nicht signiert**. Windows SmartScreen zeigt beim ersten Start daher evtl. „Der Computer wurde durch
+Ohne Code-Signing-Zertifikat ist die EXE **nicht Authenticode-signiert** (der Release-Workflow signiert automatisch,
+sobald die Secrets `SIGNING_CERTIFICATE_PFX_BASE64` und `SIGNING_CERTIFICATE_PASSWORD` hinterlegt sind). Windows
+SmartScreen zeigt beim ersten Start daher evtl. „Der Computer wurde durch
 Windows geschützt“. Über **Weitere Informationen → Trotzdem ausführen** lässt sie sich starten. Wer sichergehen will,
 vergleicht vorher die SHA256-Prüfsumme mit der im Release angegebenen oder baut die EXE selbst (siehe unten).
 
@@ -82,7 +90,8 @@ vergleicht vorher die SHA256-Prüfsumme mit der im Release angegebenen oder baut
 
 | Was | Wo |
 |-----|----|
-| Einstellungen, Profile, Favoriten, zuletzt verwendete Ziele | `settings.json` **neben der EXE** |
+| Einstellungen, Profile, Favoriten, zuletzt verwendete Ziele, Zeitpunkt der letzten Token-Eingabe (ohne Token, Benutzer/Server nur als Hash) | `settings.json` **neben der EXE** |
+| Signatur der Einstellungen (DPAPI, nur für Ihr Windows-Konto gültig) | `settings.sig` daneben |
 | Fallback, wenn der EXE-Ordner nicht beschreibbar ist (z. B. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – die App zeigt dann einen Hinweis |
 | Temporäre `.rdp`-Datei (ohne Zugangsdaten, benannt nach dem Zielserver) | `%TEMP%\PamRdpProxyManager\<id>\` – wird nach dem Verbindungsaufbau gelöscht |
 
@@ -95,15 +104,31 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 ### Sicherheit
 
 - **Passwort und Token werden nie auf Disk gespeichert** und nicht geloggt. Das Passwort liegt nur als
-  `SecureString` im Arbeitsspeicher und wird nie in einen normalen String umgewandelt.
+  `SecureString` im Arbeitsspeicher – unter Windows per `CryptProtectMemory` prozessgebunden verschlüsselt – und wird
+  nie in einen normalen String umgewandelt.
+- Das Token wird nach der Übergabe an den PAM-Server verworfen (bei aktivierter Token-Gültigkeit immer). Für die
+  Gültigkeit wird nur der **Zeitpunkt** der Eingabe gespeichert.
+- Zusätzliche `.rdp`-Einstellungen können weder Zugangsdaten, Serveradresse, RD-Gateway (`gateway*`,
+  `promptcredentialonce`, `kdcproxyname`) noch NLA/Serverauthentifizierung überschreiben.
+- **Serverauthentifizierung:** „Ohne Warnung verbinden“ wird nicht mehr angeboten (ermöglicht Man-in-the-Middle);
+  ältere Profile werden auf „Warnen“ umgestellt.
+- **Geschützte Einstellungen:** Die App signiert `settings.json` per DPAPI für das aktuelle Windows-Konto
+  (`settings.sig`). Wurde die Datei außerhalb der App geändert oder stammt sie von einem anderen PC/Benutzer, zeigt die
+  App vor der Anmeldung die PAM-Server an und fragt, ob ihnen vertraut werden soll (oder setzt zurück). So kann eine
+  manipulierte Datei das Passwort nicht unbemerkt an einen fremden Server schicken.
+- **Automatische Abmeldung:** Nach 60 Minuten ohne Tastatur-/Mauseingabe am Computer (einstellbar, abschaltbar)
+  meldet sich die App ab und verwirft das Passwort. Arbeit in der Remotedesktop-Sitzung zählt als Aktivität.
 - Die `settings.json` enthält ausschließlich Server, Profile, RDP-Optionen, Ziele und (optional) den Benutzernamen.
 - Die temporäre `.rdp`-Datei enthält **weder Passwort noch Token noch Benutzernamen** – nur Serveradresse und Optionen.
 - Die Zugangsdaten werden mstsc über einen temporären Eintrag `TERMSRV/<PAM-Server>` in der
   Windows-Anmeldeinformationsverwaltung übergeben (wie `cmdkey /generic:TERMSRV/<host>`), aber
   - direkt per Windows-API (`CredWrite`) – das Passwort taucht so **nicht in einer Prozess-Kommandozeile** auf,
   - nur mit Lebensdauer der **Anmeldesitzung** (`CRED_PERSIST_SESSION`, wird nicht auf Disk geschrieben),
-  - und wird **entfernt**, sobald mstsc beendet ist oder die eingestellte Wartezeit (Standard 15 s) abgelaufen ist,
-    spätestens beim Abmelden/Beenden der App. Reste nach einem Absturz werden beim nächsten Start bereinigt.
+  - und wird **entfernt**, sobald mstsc die Verbindung zum PAM-Server aufgebaut hat (+5 s), spätestens nach der
+    eingestellten Wartezeit (Standard 15 s), wenn mstsc beendet wird oder beim Abmelden/Beenden der App. Reste nach
+    einem Absturz werden beim nächsten Start bereinigt.
+  - Solange der Eintrag existiert, kann ihn jedes Programm unter demselben Windows-Konto lesen – deshalb ist dieses
+    Zeitfenster so kurz wie möglich.
 - Verbindungen werden nacheinander aufgebaut, damit ein zweites Ziel nicht den Eintrag eines noch laufenden
   Verbindungsaufbaus überschreibt.
 
@@ -111,7 +136,8 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 
 - **„Die Anmeldeinformationen haben nicht funktioniert“ / Passwortabfrage erscheint:** Prüfen, ob unter
   *Anmeldeinformationsverwaltung → Windows-Anmeldeinformationen* bereits ein eigener Eintrag `TERMSRV/<PAM-Server>`
-  existiert (die App warnt davor). Ggf. die Wartezeit erhöhen.
+  existiert (die App warnt davor). Erscheint vorher eine Zertifikatswarnung, diese zügig bestätigen (am besten mit
+  „Nicht erneut nachfragen“) – der temporäre Eintrag wird wenige Sekunden nach dem Verbindungsaufbau entfernt.
 - **„Ihre Anmeldeinformationen können nicht verwendet werden“ bei NLA:** Manche Gruppenrichtlinien verbieten
   gespeicherte Anmeldedaten mit NTLM-only-Serverauthentifizierung. NLA im Profil deaktivieren, falls der Proxy das
   unterstützt, oder die Richtlinie „Delegierung gespeicherter Anmeldeinformationen zulassen“ prüfen.
@@ -174,7 +200,11 @@ directly to the target. This app builds the user name for you and starts the nat
 
 - **Login dialog**: user name, password and optional confirm ID token
 - **Main window**: enter the target server, change the token per connection, preview of the proxy user name
-- **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if none was entered)
+- **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if one is needed)
+- **Token validity (MFA)** – the confirm ID token is entered once; within the configurable validity (default: enabled,
+  **8 hours**) the app connects with `user##rdphost` without passing the token to the PAM server again. When the
+  validity expires the app reminds you (notice in the window, flashing taskbar button) and asks for a new token on the
+  next connection. "Token neu eingeben" discards the validity early.
 - **Target server in the taskbar** – the Remote Desktop window is named after the target server
 - **Profiles** with PAM server (host name or URL), RDP port (default 3388) and RDP options: full screen/window &
   resolution, multi-monitor, color depth, clipboard, drives, printers, audio/microphone, NLA (CredSSP), server
@@ -184,9 +214,11 @@ directly to the target. This app builds the user name for you and starts the nat
 ### Download & usage (portable EXE)
 
 1. Download `PamRdpProxyManager-vX.Y.Z-win-x64.exe` from [**Releases**](../../releases).
-2. Optionally verify the checksum (the `.sha256` file is attached next to it):
+2. Optionally verify the checksum (the `.sha256` file is attached next to it) and the provenance – the attestation
+   proves the EXE was built by GitHub Actions from this repository:
    ```powershell
    Get-FileHash .\PamRdpProxyManager-vX.Y.Z-win-x64.exe -Algorithm SHA256
+   gh attestation verify .\PamRdpProxyManager-vX.Y.Z-win-x64.exe --repo roddyst/imprivata-pam-rdp-proxy-manager
    ```
 3. Put the EXE into any **writable** folder (e.g. `C:\Tools\PamRdp\` or a USB stick) and run it.
    No installation, no admin rights, no pre-installed .NET required.
@@ -198,7 +230,9 @@ Requirements: Windows 10/11 x64 with the built-in Remote Desktop client (`mstsc.
 
 #### SmartScreen
 
-The EXE is **not code-signed**, so Windows SmartScreen may show "Windows protected your PC" on first launch. Click
+Without a code signing certificate the EXE is **not Authenticode-signed** (the release workflow signs automatically
+once the secrets `SIGNING_CERTIFICATE_PFX_BASE64` and `SIGNING_CERTIFICATE_PASSWORD` are configured), so Windows
+SmartScreen may show "Windows protected your PC" on first launch. Click
 **More info → Run anyway**. If in doubt, compare the SHA256 checksum with the one published in the release, or build
 the EXE yourself (see below).
 
@@ -206,7 +240,8 @@ the EXE yourself (see below).
 
 | What | Where |
 |------|-------|
-| Settings, profiles, favorites, recent targets | `settings.json` **next to the EXE** |
+| Settings, profiles, favorites, recent targets, time of the last token entry (no token; user/server hashed) | `settings.json` **next to the EXE** |
+| Signature of the settings (DPAPI, only valid for your Windows account) | `settings.sig` next to it |
 | Fallback if the EXE folder is read-only (e.g. `C:\Program Files`) | `%LOCALAPPDATA%\ImprivataPamRdpProxyManager\settings.json` – the app shows a notice |
 | Temporary `.rdp` file (no credentials, named after the target server) | `%TEMP%\PamRdpProxyManager\<id>\` – deleted after the connection has been established |
 
@@ -219,22 +254,39 @@ part of the .NET single-file format and needs no special rights.
 ### Security
 
 - **Passwords and tokens are never written to disk** and never logged. The password is held in memory as a
-  `SecureString` only and is never converted into a regular string.
+  `SecureString` only – encrypted per process with `CryptProtectMemory` on Windows – and is never converted into a
+  regular string.
+- The token is discarded once it has been passed to the PAM server (always, if the token validity is enabled). Only
+  the **time** of the entry is stored for the validity.
+- Additional `.rdp` settings cannot override credentials, the server address, RD gateway settings (`gateway*`,
+  `promptcredentialonce`, `kdcproxyname`), NLA or server authentication.
+- **Server authentication:** "connect without warning" is no longer offered (allows man-in-the-middle attacks); older
+  profiles are switched to "warn".
+- **Protected settings:** the app signs `settings.json` with DPAPI for the current Windows account (`settings.sig`).
+  If the file was changed outside the app or comes from another PC/user, the app shows the PAM servers before login
+  and asks whether to trust them (or resets the file). A manipulated file therefore cannot silently send the password
+  to a foreign server.
+- **Automatic logout:** after 60 minutes without keyboard/mouse input on the computer (configurable, can be disabled)
+  the app logs out and discards the password. Work inside the remote desktop session counts as activity.
 - `settings.json` only contains servers, profiles, RDP options, targets and (optionally) the user name.
 - The temporary `.rdp` file contains **no password, no token and no user name** – only the server address and options.
 - Credentials are handed to mstsc through a temporary `TERMSRV/<PAM server>` entry in the Windows Credential Manager
   (like `cmdkey /generic:TERMSRV/<host>`), but
   - written via the Windows API (`CredWrite`), so the password **never shows up on a process command line**,
   - with **logon-session** lifetime only (`CRED_PERSIST_SESSION`, never persisted to disk),
-  - and **removed** as soon as mstsc exits or the configured delay (default 15 s) has elapsed – at the latest when
-    logging out of / closing the app. Leftovers after a crash are cleaned up on the next start.
+  - and **removed** as soon as mstsc has connected to the PAM server (+5 s), at the latest after the configured delay
+    (default 15 s), when mstsc exits or when logging out of / closing the app. Leftovers after a crash are cleaned up
+    on the next start.
+  - While the entry exists any program running under the same Windows account can read it – which is why this window
+    is kept as short as possible.
 - Connections are established one after another so a second target cannot overwrite the credential of a connection
   that is still authenticating.
 
 ### Troubleshooting
 
 - **Credential prompt appears / "Your credentials did not work":** check *Credential Manager → Windows Credentials*
-  for an existing `TERMSRV/<PAM server>` entry of your own (the app warns about it). Increase the cleanup delay if needed.
+  for an existing `TERMSRV/<PAM server>` entry of your own (the app warns about it). If a certificate warning appears first, confirm it promptly (ideally with
+  "Don't ask me again") – the temporary entry is removed a few seconds after the connection has been established.
 - **"Your credentials could not be used" with NLA:** some group policies forbid saved credentials with NTLM-only server
   authentication. Disable NLA in the profile if the proxy supports it, or check the policy
   "Allow delegating saved credentials".

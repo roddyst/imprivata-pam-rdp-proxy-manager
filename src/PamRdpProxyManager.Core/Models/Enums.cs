@@ -23,7 +23,10 @@ public enum AudioMode
 /// <summary>Maps to the <c>authentication level</c> RDP setting (server authentication).</summary>
 public enum ServerAuthenticationLevel
 {
-    /// <summary>Connect without warning if server authentication fails.</summary>
+    /// <summary>
+    /// Connect without warning if server authentication fails. No longer offered (allows man-in-the-middle attacks
+    /// on the password); older settings are migrated to <see cref="Warn"/> and the .rdp file never contains it.
+    /// </summary>
     ConnectWithoutWarning = 0,
 
     /// <summary>Do not connect if server authentication fails.</summary>

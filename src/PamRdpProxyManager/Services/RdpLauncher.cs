@@ -29,6 +29,15 @@ public sealed class RdpLauncher : IDisposable
 
     public static string TempDirectory { get; } = Path.Combine(Path.GetTempPath(), "PamRdpProxyManager");
 
+    /// <summary>
+    /// Time the credential is kept after mstsc has established the TCP connection to the PAM server. mstsc reads
+    /// the credential when it starts connecting and uses it for NLA right after the TLS handshake.
+    /// </summary>
+    private static readonly TimeSpan ConnectedGrace = TimeSpan.FromSeconds(5);
+
+    /// <summary>Longer than the maximum cleanup delay (300 s).</summary>
+    private static readonly TimeSpan LeftoverMinAge = TimeSpan.FromMinutes(10);
+
     public static string MstscPath => Path.Combine(Environment.SystemDirectory, "mstsc.exe");
 
     /// <summary><c>true</c> while a previous connection still holds the temporary credential.</summary>
@@ -42,7 +51,8 @@ public sealed class RdpLauncher : IDisposable
     {
         try
         {
-            CredentialManager.DeleteLeftovers();
+            // Same age limit as for the files: entries of a concurrently running instance are younger.
+            CredentialManager.DeleteLeftovers(LeftoverMinAge);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -57,7 +67,7 @@ public sealed class RdpLauncher : IDisposable
             }
 
             // Files of a concurrently running instance are younger than its cleanup delay.
-            var cutoff = DateTime.UtcNow.AddMinutes(-10);
+            var cutoff = DateTime.UtcNow - LeftoverMinAge;
             foreach (var file in Directory.EnumerateFiles(TempDirectory, "*.rdp"))
             {
                 if (File.GetLastWriteTimeUtc(file) < cutoff)
@@ -123,7 +133,7 @@ public sealed class RdpLauncher : IDisposable
             {
                 try
                 {
-                    await WaitForExitOrTimeoutAsync(process, request.CleanupDelay);
+                    await WaitUntilCredentialUsedAsync(process, request.Port, request.CleanupDelay);
                 }
                 finally
                 {
@@ -163,16 +173,58 @@ public sealed class RdpLauncher : IDisposable
 
     public void Dispose() => CleanupNow();
 
-    private static async Task WaitForExitOrTimeoutAsync(Process process, TimeSpan delay)
+    /// <summary>
+    /// Waits until mstsc has used the credential so it can be removed as early as possible: any program running
+    /// under the same Windows account could read it while it exists. Returns when mstsc exited, a few seconds after
+    /// it connected to the PAM server, or at the latest after <paramref name="maxDelay"/>.
+    /// </summary>
+    private static async Task WaitUntilCredentialUsedAsync(Process process, int proxyPort, TimeSpan maxDelay)
     {
-        using var cts = new CancellationTokenSource(delay);
+        using var cts = new CancellationTokenSource(maxDelay);
         try
         {
-            await process.WaitForExitAsync(cts.Token);
+            while (true)
+            {
+                if (process.HasExited)
+                {
+                    return;
+                }
+
+                var connected = SystemState.HasEstablishedTcpConnection(process.Id, proxyPort);
+                if (connected is null)
+                {
+                    // Connection table not available – fall back to the fixed delay.
+                    await process.WaitForExitAsync(cts.Token);
+                    return;
+                }
+
+                if (connected == true)
+                {
+                    var grace = ConnectedGrace < maxDelay ? ConnectedGrace : maxDelay;
+                    using var graceCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token);
+                    graceCts.CancelAfter(grace);
+                    try
+                    {
+                        await process.WaitForExitAsync(graceCts.Token);
+                    }
+                    catch (OperationCanceledException) when (!cts.IsCancellationRequested)
+                    {
+                        // Grace period elapsed.
+                    }
+
+                    return;
+                }
+
+                await Task.Delay(TimeSpan.FromMilliseconds(200), cts.Token);
+            }
         }
         catch (OperationCanceledException)
         {
-            // Delay elapsed – mstsc is still running and has used the credential by now.
+            // Maximum delay elapsed – mstsc is still running and has used the credential by now.
+        }
+        catch (InvalidOperationException)
+        {
+            // Process information no longer available.
         }
     }
 

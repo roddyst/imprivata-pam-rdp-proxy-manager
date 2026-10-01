@@ -106,9 +106,13 @@ public static class CredentialManager
         return CredDelete(target, CRED_TYPE_GENERIC, 0);
     }
 
-    /// <summary>Removes all TERMSRV entries left behind by this app (e.g. after a crash).</summary>
-    public static int DeleteLeftovers()
+    /// <summary>
+    /// Removes TERMSRV entries left behind by this app (e.g. after a crash). Entries younger than
+    /// <paramref name="minAge"/> may belong to another running instance that is still connecting and are kept.
+    /// </summary>
+    public static int DeleteLeftovers(TimeSpan minAge)
     {
+        var cutoff = DateTime.UtcNow - minAge;
         if (!CredEnumerate("TERMSRV/*", 0, out var count, out var list))
         {
             return 0;
@@ -121,7 +125,7 @@ public static class CredentialManager
             {
                 var ptr = Marshal.ReadIntPtr(list, i * IntPtr.Size);
                 var cred = Marshal.PtrToStructure<CREDENTIAL>(ptr);
-                if (cred.Type == CRED_TYPE_GENERIC && cred.Comment == Marker)
+                if (cred.Type == CRED_TYPE_GENERIC && cred.Comment == Marker && LastWrittenUtc(cred) < cutoff)
                 {
                     targets.Add(cred.TargetName);
                 }
@@ -134,4 +138,7 @@ public static class CredentialManager
 
         return targets.Count(t => CredDelete(t, CRED_TYPE_GENERIC, 0));
     }
+
+    private static DateTime LastWrittenUtc(CREDENTIAL cred) =>
+        DateTime.FromFileTimeUtc(((long)cred.LastWritten.dwHighDateTime << 32) | (uint)cred.LastWritten.dwLowDateTime);
 }

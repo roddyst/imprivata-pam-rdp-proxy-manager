@@ -10,10 +10,16 @@ public partial class LoginWindow : FluentWindow
 {
     private readonly AppSettings _settings;
 
-    public LoginWindow(AppSettings settings)
+    public LoginWindow(AppSettings settings, string? notice = null)
     {
         _settings = settings;
         InitializeComponent();
+
+        if (notice is not null)
+        {
+            NoticeBar.Message = notice;
+            NoticeBar.IsOpen = true;
+        }
 
         var profile = settings.Profiles.FirstOrDefault(p => p.Name == settings.ActiveProfileName) ?? settings.Profiles[0];
         ServerInfo.Text = $"PAM-Server: {profile.ProxyHost}:{profile.Port}  ·  Profil: {profile.Name}";
