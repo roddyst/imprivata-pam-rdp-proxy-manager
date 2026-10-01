@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Test
+        run: dotnet test tests/PamRdpProxyManager.Core.Tests/PamRdpProxyManager.Core.Tests.csproj -c Release
+
+      - name: Publish portable EXE
+        run: >
+          dotnet publish src/PamRdpProxyManager/PamRdpProxyManager.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true
+          -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PamRdpProxyManager-win-x64
+          path: publish/PamRdpProxyManager.exe
+          if-no-files-found: error
