@@ -65,17 +65,6 @@
             <TextBlock Style="{StaticResource FieldLabel}" Text="Passwort" />
             <PasswordBox x:Name="PasswordBox" AutomationProperties.Name="Passwort" />
 
-            <TextBlock Style="{StaticResource FieldLabel}" Text="Confirm-ID-Token (optional)" />
-            <ui:TextBox
-                x:Name="TokenBox"
-                AutomationProperties.Name="Confirm-ID-Token"
-                PlaceholderText="Imprivata ID Token">
-                <ui:TextBox.Icon>
-                    <ui:SymbolIcon Symbol="ShieldKeyhole24" />
-                </ui:TextBox.Icon>
-            </ui:TextBox>
-            <TextBlock Style="{StaticResource Hint}" Text="Das Token kann im Hauptfenster vor jeder Verbindung neu eingegeben werden." />
-
             <CheckBox
                 x:Name="RememberBox"
                 Margin="0,14,0,0"
@@ -92,7 +81,7 @@
                 Margin="0,14,0,0"
                 Appearance="Tertiary"
                 FontSize="12"
-                Text="Passwort und Token werden ausschließlich im Arbeitsspeicher gehalten und nie gespeichert."
+                Text="Das Passwort wird ausschließlich im Arbeitsspeicher gehalten und nie gespeichert. Das Confirm-ID-Token wird erst beim Verbinden abgefragt."
                 TextWrapping="Wrap" />
 
             <StackPanel

@@ -47,7 +47,7 @@ der Verbindungsdaten ab.
 
 ### Funktionen
 
-- **Startdialog**: Benutzername, Passwort und optional das Confirm-ID-Token
+- **Startdialog**: Benutzername und Passwort – das Confirm-ID-Token wird erst beim Verbinden abgefragt
 - **Hauptfenster**: Zielserver eingeben, Token pro Verbindung ändern, Vorschau des Proxy-Benutzernamens
 - **Favoriten & zuletzt verwendete Ziele** – Klick übernimmt, Doppelklick verbindet (wird ein Token benötigt, wird vorher danach gefragt)
 - **Token-Gültigkeit (MFA)** – das Confirm-ID-Token wird nur einmal eingegeben; innerhalb der einstellbaren Gültigkeit
@@ -198,7 +198,7 @@ directly to the target. This app builds the user name for you and starts the nat
 
 ### Features
 
-- **Login dialog**: user name, password and optional confirm ID token
+- **Login dialog**: user name and password – the confirm ID token is only asked for when connecting
 - **Main window**: enter the target server, change the token per connection, preview of the proxy user name
 - **Favorites & recently used targets** – click to select, double-click to connect (asks for the token if one is needed)
 - **Token validity (MFA)** – the confirm ID token is entered once; within the configurable validity (default: enabled,
