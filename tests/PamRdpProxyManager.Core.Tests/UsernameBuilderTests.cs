@@ -31,6 +31,9 @@ public class UsernameBuilderTests
     [InlineData("jdoe", "1", "s rv")]
     [InlineData("", "1", "srv")]
     [InlineData("jdoe", "1", "")]
+    [InlineData("jdoe", "1", "srv01\u202Ecom")] // right-to-left override
+    [InlineData("jdoe", "1", "srv\u200B01")] // zero-width space
+    [InlineData("jdoe", "1\u2028x", "srv")] // line separator
     public void Build_RejectsInvalidParts(string user, string token, string host) =>
         Assert.Throws<ArgumentException>(() => UsernameBuilder.Build(user, token, host));
 }

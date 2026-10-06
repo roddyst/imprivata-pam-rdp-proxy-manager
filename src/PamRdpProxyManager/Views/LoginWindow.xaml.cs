@@ -22,7 +22,10 @@ public partial class LoginWindow : FluentWindow
         }
 
         var profile = settings.Profiles.FirstOrDefault(p => p.Name == settings.ActiveProfileName) ?? settings.Profiles[0];
-        ServerInfo.Text = $"PAM-Server: {profile.ProxyHost}:{profile.Port}  ·  Profil: {profile.Name}";
+        var server = ProxyHostParser.TryParse(profile.ProxyHost, out var host, out var port, out _)
+            ? $"{host}:{port ?? profile.Port}"
+            : "ungültige Adresse – bitte in den Einstellungen prüfen";
+        ServerInfo.Text = $"PAM-Server: {server}  ·  Profil: {SettingsReview.Sanitize(profile.Name)}";
         RememberBox.IsChecked = settings.RememberUserName;
         UserNameBox.Text = settings.RememberUserName ? settings.LastUserName ?? string.Empty : string.Empty;
 

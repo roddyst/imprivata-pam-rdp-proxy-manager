@@ -52,6 +52,34 @@ public class RdpFileBuilderTests
     }
 
     [Theory]
+    [InlineData("keyboardhook:i:2\rfull address:s:evil.example.com")]
+    [InlineData("keyboardhook:i:2\r\nfull address:s:evil.example.com")]
+    [InlineData("keyboardhook:s:x\u2028full address:s:evil.example.com")]
+    [InlineData("keyboardhook:s:x\u0085full address:s:evil.example.com")]
+    [InlineData("full\u00A0address:s:evil.example.com")]
+    [InlineData("full\u200Baddress:s:evil.example.com")]
+    public void Build_LineBreakAndLookAlikeTricks_CannotOverrideServer(string additional)
+    {
+        var content = RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { AdditionalSettings = additional });
+
+        Assert.DoesNotContain("evil.example.com", content);
+        Assert.Equal("pam.example.com:3388", Parse(content)["full address"]);
+    }
+
+    [Fact]
+    public void Build_IgnoresLegacySecurityLayer()
+    {
+        var content = RdpFileBuilder.Build("pam.example.com", 3388, new RdpOptions { AdditionalSettings = "negotiate security layer:i:0" });
+        Assert.DoesNotContain("negotiate security layer", content);
+    }
+
+    [Theory]
+    [InlineData("pam.example.com\r\nusername:s:x")]
+    [InlineData("pam.example.com evil")]
+    public void Build_RejectsHostWithLineBreaksOrSpaces(string host) =>
+        Assert.Throws<ArgumentException>(() => RdpFileBuilder.Build(host, 3388, new RdpOptions()));
+
+    [Theory]
     [InlineData(ServerAuthenticationLevel.ConnectWithoutWarning, "2")]
     [InlineData((ServerAuthenticationLevel)7, "2")]
     [InlineData(ServerAuthenticationLevel.Warn, "2")]

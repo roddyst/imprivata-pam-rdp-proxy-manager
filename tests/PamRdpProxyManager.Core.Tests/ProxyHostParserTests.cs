@@ -12,6 +12,8 @@ public class ProxyHostParserTests
     [InlineData("https://pam.example.com:8443/login", "pam.example.com", null)]
     [InlineData("192.0.2.10", "192.0.2.10", null)]
     [InlineData("[2001:db8::1]:3389", "[2001:db8::1]", 3389)]
+    // Look-alike with a Cyrillic "а" – shown (and resolved) in its punycode form.
+    [InlineData("p\u0430m.example.com", "xn--pm-7kc.example.com", null)]
     public void TryParse_ValidInput(string input, string expectedHost, int? expectedPort)
     {
         Assert.True(ProxyHostParser.TryParse(input, out var host, out var port, out var error), error);
@@ -24,6 +26,8 @@ public class ProxyHostParserTests
     [InlineData("")]
     [InlineData("https://user:pass@pam.example.com")]
     [InlineData("pam example com")]
+    [InlineData("pam.example.com\nfull address:s:evil.example.com")]
+    [InlineData("evil.example.com\tpam.example.com")]
     public void TryParse_InvalidInput(string? input) =>
         Assert.False(ProxyHostParser.TryParse(input, out _, out _, out _));
 }

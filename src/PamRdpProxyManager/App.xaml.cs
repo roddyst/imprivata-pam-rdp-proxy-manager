@@ -25,6 +25,11 @@ public partial class App : Application
         base.OnStartup(e);
         DispatcherUnhandledException += OnUnhandledException;
 
+        // Remove the temporary credential even if the app crashes or Windows logs off while a connection is
+        // being established – otherwise it would stay readable until the next start.
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => _launcher.CleanupNow();
+        SessionEnding += (_, _) => _launcher.CleanupNow();
+
         _store = SettingsStore.ForCurrentProcess(AppFolderName, new DpapiSettingsProtector());
         _settings = _store.Load(out _startupWarning);
         ThemeHelper.Apply(_settings.Theme);
@@ -50,22 +55,8 @@ public partial class App : Application
             .AppendLine("Die Einstellungsdatei wurde nicht von dieser App für Ihr Windows-Konto auf diesem Computer gespeichert.")
             .AppendLine("Das ist normal beim ersten Start nach einem Update oder wenn die Datei von einem anderen PC stammt – sie kann aber auch verändert worden sein.")
             .AppendLine()
-            .AppendLine("Ihr Passwort wird an diese PAM-Server übergeben:");
-        foreach (var profile in _settings.Profiles)
-        {
-            text.Append("  •  ").Append(profile.Name).Append(": ").Append(profile.ProxyHost).Append(':').Append(profile.Port);
-            if (profile.Rdp.RedirectDrives)
-            {
-                text.Append("  (Laufwerke werden umgeleitet)");
-            }
-
-            if (!string.IsNullOrWhiteSpace(profile.Rdp.AdditionalSettings))
-            {
-                text.Append("  (zusätzliche RDP-Einstellungen)");
-            }
-
-            text.AppendLine();
-        }
+            .AppendLine("Ihr Passwort wird an diese PAM-Server übergeben:")
+            .Append(SettingsReview.Describe(_settings));
 
         text.AppendLine().Append("Nur vertrauen, wenn Sie diese Server kennen. „Zurücksetzen“ legt die Datei beiseite und startet mit Standardwerten.");
 

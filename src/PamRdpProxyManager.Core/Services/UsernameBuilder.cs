@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace PamRdpProxyManager.Core.Services;
 
 /// <summary>
@@ -29,12 +31,12 @@ public static class UsernameBuilder
 
         if (ContainsInvalidChars(user))
         {
-            return "Der Benutzername darf weder '#' noch Leer- oder Steuerzeichen enthalten.";
+            return "Der Benutzername darf weder '#' noch Leer-, Steuer- oder unsichtbare Zeichen enthalten.";
         }
 
         if (!string.IsNullOrWhiteSpace(token) && ContainsInvalidChars(token))
         {
-            return "Das Confirm-ID-Token darf weder '#' noch Leer- oder Steuerzeichen enthalten.";
+            return "Das Confirm-ID-Token darf weder '#' noch Leer-, Steuer- oder unsichtbare Zeichen enthalten.";
         }
 
         return ValidateTarget(targetHost);
@@ -49,12 +51,15 @@ public static class UsernameBuilder
 
         if (ContainsInvalidChars(targetHost))
         {
-            return "Der Zielserver darf weder '#' noch Leer- oder Steuerzeichen enthalten.";
+            return "Der Zielserver darf weder '#' noch Leer-, Steuer- oder unsichtbare Zeichen enthalten.";
         }
 
         return null;
     }
 
+    // Invisible formatting characters (zero-width space, right-to-left override, ...) would make a host look like
+    // a different one in the list of recent targets.
     private static bool ContainsInvalidChars(string value) =>
-        value.Trim().Any(c => c == Separator || char.IsWhiteSpace(c) || char.IsControl(c));
+        value.Trim().Any(c => c == Separator || char.IsWhiteSpace(c) || char.IsControl(c)
+            || CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.Format);
 }

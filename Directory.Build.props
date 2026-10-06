@@ -12,5 +12,8 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- Embedded symbols keep the published output to a single EXE. -->
     <DebugType>embedded</DebugType>
+    <!-- Report vulnerable packages, including transitive ones (fails the build via TreatWarningsAsErrors). -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
   </PropertyGroup>
 </Project>
