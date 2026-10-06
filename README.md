@@ -80,8 +80,7 @@ Voraussetzungen: Windows 10/11 x64 mit dem integrierten Remotedesktop-Client (`m
 
 #### SmartScreen-Hinweis
 
-Ohne Code-Signing-Zertifikat ist die EXE **nicht Authenticode-signiert** (der Release-Workflow signiert automatisch,
-sobald die Secrets `SIGNING_CERTIFICATE_PFX_BASE64` und `SIGNING_CERTIFICATE_PASSWORD` hinterlegt sind). Windows
+Die EXE im Release ist **nicht Authenticode-signiert**. Windows
 SmartScreen zeigt beim ersten Start daher evtl. „Der Computer wurde durch
 Windows geschützt“. Über **Weitere Informationen → Trotzdem ausführen** lässt sie sich starten. Wer sichergehen will,
 vergleicht vorher die SHA256-Prüfsumme mit der im Release angegebenen oder baut die EXE selbst (siehe unten).
@@ -230,8 +229,7 @@ Requirements: Windows 10/11 x64 with the built-in Remote Desktop client (`mstsc.
 
 #### SmartScreen
 
-Without a code signing certificate the EXE is **not Authenticode-signed** (the release workflow signs automatically
-once the secrets `SIGNING_CERTIFICATE_PFX_BASE64` and `SIGNING_CERTIFICATE_PASSWORD` are configured), so Windows
+The EXE in the release is **not Authenticode-signed**, so Windows
 SmartScreen may show "Windows protected your PC" on first launch. Click
 **More info → Run anyway**. If in doubt, compare the SHA256 checksum with the one published in the release, or build
 the EXE yourself (see below).
