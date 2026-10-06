@@ -45,10 +45,9 @@ public partial class LoginWindow : FluentWindow
     private void OnLoginClick(object sender, RoutedEventArgs e)
     {
         var user = UserNameBox.Text.Trim();
-        var token = TokenBox.Text.Trim();
 
         // Validate with a placeholder target – the real target is chosen in the main window.
-        var error = UsernameBuilder.Validate(user, token, "placeholder");
+        var error = UsernameBuilder.Validate(user, null, "placeholder");
         if (error is null && PasswordBox.SecurePassword.Length == 0)
         {
             error = "Bitte das Passwort eingeben.";
@@ -63,11 +62,10 @@ public partial class LoginWindow : FluentWindow
 
         using (var password = PasswordBox.SecurePassword)
         {
-            Session = new UserSession(user, password, token);
+            Session = new UserSession(user, password);
         }
 
         PasswordBox.Clear();
-        TokenBox.Clear();
         _settings.RememberUserName = RememberBox.IsChecked == true;
         DialogResult = true;
     }

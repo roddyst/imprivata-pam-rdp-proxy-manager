@@ -39,7 +39,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Profiles = new ObservableCollection<ConnectionProfile>(settings.Profiles);
         _selectedProfile = Profiles.FirstOrDefault(p => p.Name == settings.ActiveProfileName) ?? Profiles[0];
         RecentTargets = new ObservableCollection<RecentTarget>(RecentTargetList.Ordered(settings.RecentTargets));
-        _token = session.TakeToken();
 
         if (!store.IsPortable)
         {
@@ -97,7 +96,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(UsernamePreview))]
-    private string _token;
+    private string _token = string.Empty;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(DeleteProfileCommand))]
