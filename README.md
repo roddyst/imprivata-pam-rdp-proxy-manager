@@ -151,7 +151,7 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 
 ### Selbst bauen
 
-Voraussetzung: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Voraussetzung: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```powershell
 dotnet test tests/PamRdpProxyManager.Core.Tests
@@ -305,7 +305,7 @@ part of the .NET single-file format and needs no special rights.
 
 ### Building from source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```powershell
 dotnet test tests/PamRdpProxyManager.Core.Tests
