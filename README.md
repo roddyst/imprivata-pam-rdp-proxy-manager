@@ -108,13 +108,21 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 - Das Token wird nach der Übergabe an den PAM-Server verworfen (bei aktivierter Token-Gültigkeit immer). Für die
   Gültigkeit wird nur der **Zeitpunkt** der Eingabe gespeichert.
 - Zusätzliche `.rdp`-Einstellungen können weder Zugangsdaten, Serveradresse, RD-Gateway (`gateway*`,
-  `promptcredentialonce`, `kdcproxyname`) noch NLA/Serverauthentifizierung überschreiben.
+  `promptcredentialonce`, `kdcproxyname`), NLA/Serverauthentifizierung noch die TLS-Aushandlung
+  (`negotiate security layer`) überschreiben. Zeilen mit Steuer- oder unsichtbaren Zeichen (z. B. ein einzelnes CR,
+  über das sich eine zweite `full address` einschleusen könnte) werden verworfen.
+- **Doppelgänger-Adressen:** Internationalisierte Servernamen werden in Punycode verwendet und angezeigt
+  (`pаm.example.com` mit kyrillischem „а“ erscheint als `xn--pm-7kc.example.com`). Benutzername, Token und Zielserver
+  dürfen keine unsichtbaren Zeichen (Zero-Width, Rechts-nach-links-Umkehr) enthalten.
 - **Serverauthentifizierung:** „Ohne Warnung verbinden“ wird nicht mehr angeboten (ermöglicht Man-in-the-Middle);
   ältere Profile werden auf „Warnen“ umgestellt.
 - **Geschützte Einstellungen:** Die App signiert `settings.json` per DPAPI für das aktuelle Windows-Konto
   (`settings.sig`). Wurde die Datei außerhalb der App geändert oder stammt sie von einem anderen PC/Benutzer, zeigt die
-  App vor der Anmeldung die PAM-Server an und fragt, ob ihnen vertraut werden soll (oder setzt zurück). So kann eine
-  manipulierte Datei das Passwort nicht unbemerkt an einen fremden Server schicken.
+  App vor der Anmeldung die PAM-Server an und fragt, ob ihnen vertraut werden soll (oder setzt zurück). Angezeigt
+  wird genau die Adresse, die beim Verbinden verwendet würde, dazu umgeleitete Laufwerke, ausgeschaltetes NLA und jede
+  zusätzliche `.rdp`-Zeile. So kann eine manipulierte Datei das Passwort nicht unbemerkt an einen fremden Server
+  schicken. Hinweis: Die Signatur schützt vor Änderungen durch andere Benutzer oder Kopien – nicht vor Schadsoftware,
+  die bereits unter dem eigenen Windows-Konto läuft.
 - **Automatische Abmeldung:** Nach 60 Minuten ohne Tastatur-/Mauseingabe am Computer (einstellbar, abschaltbar)
   meldet sich die App ab und verwirft das Passwort. Arbeit in der Remotedesktop-Sitzung zählt als Aktivität.
 - Die `settings.json` enthält ausschließlich Server, Profile, RDP-Optionen, Ziele und (optional) den Benutzernamen.
@@ -124,8 +132,8 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
   - direkt per Windows-API (`CredWrite`) – das Passwort taucht so **nicht in einer Prozess-Kommandozeile** auf,
   - nur mit Lebensdauer der **Anmeldesitzung** (`CRED_PERSIST_SESSION`, wird nicht auf Disk geschrieben),
   - und wird **entfernt**, sobald mstsc die Verbindung zum PAM-Server aufgebaut hat (+5 s), spätestens nach der
-    eingestellten Wartezeit (Standard 15 s), wenn mstsc beendet wird oder beim Abmelden/Beenden der App. Reste nach
-    einem Absturz werden beim nächsten Start bereinigt.
+    eingestellten Wartezeit (Standard 15 s), wenn mstsc beendet wird, beim Abmelden/Beenden der App, bei einem
+    Absturz der App oder beim Abmelden von Windows. Reste (z. B. nach Stromausfall) werden beim nächsten Start bereinigt.
   - Solange der Eintrag existiert, kann ihn jedes Programm unter demselben Windows-Konto lesen – deshalb ist dieses
     Zeitfenster so kurz wie möglich.
 - Verbindungen werden nacheinander aufgebaut, damit ein zweites Ziel nicht den Eintrag eines noch laufenden
@@ -143,7 +151,7 @@ entpackt. Das ist Teil des .NET-Single-File-Formats und erfordert keine Rechte.
 
 ### Selbst bauen
 
-Voraussetzung: [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Voraussetzung: [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```powershell
 dotnet test tests/PamRdpProxyManager.Core.Tests
@@ -257,13 +265,19 @@ part of the .NET single-file format and needs no special rights.
 - The token is discarded once it has been passed to the PAM server (always, if the token validity is enabled). Only
   the **time** of the entry is stored for the validity.
 - Additional `.rdp` settings cannot override credentials, the server address, RD gateway settings (`gateway*`,
-  `promptcredentialonce`, `kdcproxyname`), NLA or server authentication.
+  `promptcredentialonce`, `kdcproxyname`), NLA, server authentication or TLS negotiation (`negotiate security layer`).
+  Lines with control or invisible characters (e.g. a lone CR that could smuggle in a second `full address`) are dropped.
+- **Look-alike addresses:** internationalized server names are used and shown in punycode (`pаm.example.com` with a
+  Cyrillic "а" appears as `xn--pm-7kc.example.com`). User name, token and target server must not contain invisible
+  characters (zero-width, right-to-left override).
 - **Server authentication:** "connect without warning" is no longer offered (allows man-in-the-middle attacks); older
   profiles are switched to "warn".
 - **Protected settings:** the app signs `settings.json` with DPAPI for the current Windows account (`settings.sig`).
   If the file was changed outside the app or comes from another PC/user, the app shows the PAM servers before login
-  and asks whether to trust them (or resets the file). A manipulated file therefore cannot silently send the password
-  to a foreign server.
+  and asks whether to trust them (or resets the file). It shows exactly the address that would be used to connect,
+  plus redirected drives, disabled NLA and every additional `.rdp` line. A manipulated file therefore cannot silently
+  send the password to a foreign server. Note: the signature protects against changes by other users or copies – not
+  against malware that already runs under your own Windows account.
 - **Automatic logout:** after 60 minutes without keyboard/mouse input on the computer (configurable, can be disabled)
   the app logs out and discards the password. Work inside the remote desktop session counts as activity.
 - `settings.json` only contains servers, profiles, RDP options, targets and (optionally) the user name.
@@ -273,8 +287,8 @@ part of the .NET single-file format and needs no special rights.
   - written via the Windows API (`CredWrite`), so the password **never shows up on a process command line**,
   - with **logon-session** lifetime only (`CRED_PERSIST_SESSION`, never persisted to disk),
   - and **removed** as soon as mstsc has connected to the PAM server (+5 s), at the latest after the configured delay
-    (default 15 s), when mstsc exits or when logging out of / closing the app. Leftovers after a crash are cleaned up
-    on the next start.
+    (default 15 s), when mstsc exits, when logging out of / closing the app, when the app crashes or when Windows logs
+    off. Leftovers (e.g. after a power loss) are cleaned up on the next start.
   - While the entry exists any program running under the same Windows account can read it – which is why this window
     is kept as short as possible.
 - Connections are established one after another so a second target cannot overwrite the credential of a connection
@@ -291,7 +305,7 @@ part of the .NET single-file format and needs no special rights.
 
 ### Building from source
 
-Requires the [.NET 8 SDK](https://dotnet.microsoft.com/download/dotnet/8.0).
+Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0).
 
 ```powershell
 dotnet test tests/PamRdpProxyManager.Core.Tests

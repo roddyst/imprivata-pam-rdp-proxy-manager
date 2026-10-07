@@ -26,6 +26,9 @@ public static class RdpFileBuilder
         // Have dedicated controls; must not be weakened silently (e.g. by a manipulated settings.json).
         "authentication level",
         "enablecredsspsupport",
+
+        // 0 = legacy RDP security without TLS and without server authentication.
+        "negotiate security layer",
     ];
 
     /// <summary>
@@ -46,6 +49,12 @@ public static class RdpFileBuilder
     public static string Build(string proxyHost, int port, RdpOptions options)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(proxyHost);
+        if (proxyHost.Any(c => char.IsWhiteSpace(c) || char.IsControl(c)))
+        {
+            // Defense in depth: a line break would allow additional lines (e.g. a second "full address").
+            throw new ArgumentException("Host must not contain whitespace or control characters.", nameof(proxyHost));
+        }
+
         if (!ProxyHostParser.IsValidPort(port))
         {
             throw new ArgumentOutOfRangeException(nameof(port), port, "Port must be between 1 and 65535.");
@@ -103,11 +112,19 @@ public static class RdpFileBuilder
             yield break;
         }
 
-        foreach (var raw in text.Split('\n'))
+        // A lone CR may be read as a line break by mstsc, so a value such as "x:i:1<CR>full address:s:evil" could
+        // smuggle in a blocked key. Every line break ends a line, and lines with other control or invisible
+        // formatting characters are dropped.
+        foreach (var raw in text.Split(['\r', '\n']))
         {
             var line = raw.Trim();
+            if (line.Any(IsUnsafeChar))
+            {
+                continue;
+            }
+
             var parts = line.Split(':', 3);
-            if (parts.Length != 3 || parts[0].Trim().Length == 0 || parts[1] is not ("i" or "s" or "b"))
+            if (parts.Length != 3 || !IsValidKey(parts[0].Trim()) || parts[1] is not ("i" or "s" or "b"))
             {
                 continue;
             }
@@ -162,6 +179,14 @@ public static class RdpFileBuilder
         level == ServerAuthenticationLevel.DoNotConnect ? level : ServerAuthenticationLevel.Warn;
 
     private static string KeyOf(string line) => line.Split(':', 2)[0].Trim();
+
+    /// <summary>.rdp keys are plain ASCII words (e.g. <c>keyboardhook</c>, <c>use multimon</c>).</summary>
+    private static bool IsValidKey(string key) =>
+        key.Length > 0 && key.All(c => char.IsAsciiLetterOrDigit(c) || c == ' ');
+
+    private static bool IsUnsafeChar(char c) =>
+        char.IsControl(c)
+        || CharUnicodeInfo.GetUnicodeCategory(c) is UnicodeCategory.Format or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator;
 
     private static string S(string key, string value) => $"{key}:s:{value}";
 

@@ -43,7 +43,15 @@ public static class ProxyHostParser
             return false;
         }
 
-        host = uri.HostNameType == UriHostNameType.IPv6 ? $"[{name}]" : name;
+        // Internationalized names are used in their ASCII (punycode) form, which is also what DNS resolves. A
+        // look-alike such as "pаm.example.com" with a Cyrillic "а" then shows up as "xn--…" instead of passing as
+        // the real server in the settings check.
+        host = uri.HostNameType switch
+        {
+            UriHostNameType.IPv6 => $"[{name}]",
+            UriHostNameType.Dns => uri.IdnHost,
+            _ => name,
+        };
 
         // Only take the port from "host:port" input; a URL's default (e.g. 443 for https) is not an RDP port.
         if (!uri.IsDefaultPort && uri.Port > 0 && text.StartsWith("rdp://", StringComparison.OrdinalIgnoreCase))
